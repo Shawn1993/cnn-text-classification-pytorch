@@ -1,10 +1,9 @@
 ## Introduction
-This is the implementation of kim's [Convolutional Neural Networks for Sentence Classification](https://arxiv.org/abs/1408.5882) paper in PyTorch.
+This is the implementation of Kim's [Convolutional Neural Networks for Sentence Classification](https://arxiv.org/abs/1408.5882) paper in PyTorch.
 
-Kim's implementation of the model in Theano:
+1. Kim's implementation of the model in Theano:
 [https://github.com/yoonkim/CNN_sentence](https://github.com/yoonkim/CNN_sentence)
-
-Denny Britz has an implementation in Tensorflow:
+2. Denny Britz has an implementation in Tensorflow:
 [https://github.com/dennybritz/cnn-text-classification-tf](https://github.com/dennybritz/cnn-text-classification-tf)
 
 ## Requirement
@@ -12,6 +11,16 @@ Denny Britz has an implementation in Tensorflow:
 * pytorch > 0.1
 * torchtext > 0.1
 * numpy
+
+## Result
+I just tried two dataset, MR and SST.
+
+|Dataset|Class Size|Best Result|Kim's Paper Result|
+|---|---|---|---|
+|MR|2|77.5%(CNN-rand-static)|76.1%(CNN-rand-nostatic)|
+|SST|5|37.2%(CNN-rand-static)|45.0%(CNN-rand-nostatic)|
+
+I haven't adjusted the hyper-parameters for SST seriously.
 
 ## Usage
 ```
@@ -71,11 +80,20 @@ Batch[100] - loss: 0.655424  acc: 59.3750%
 Evaluation - loss: 0.672396  acc: 57.6923%(615/1066) 
 ```
 
+## Test
+If you has construct you test set, you make testing like:
+
+```
+/main.py -test -snapshot="./snapshot/2017-02-11-15-50/snapshot_steps1500.pt
+```
+The snapshot option means where your model load from. If you don't assign it, the model will start from scratch.
+
 ## Predict
 * **Example1**
 
 	```
-	./main.py -predict="Hello my dear , I love you so much ." -snapshot="./snapshot/2017-02-11-15-50/snapshot_steps1500.pt" 
+	./main.py -predict="Hello my dear , I love you so much ." \
+	          -snapshot="./snapshot/2017-02-11-15-50/snapshot_steps1500.pt" 
 	```
 	You will get:
 	
@@ -88,7 +106,8 @@ Evaluation - loss: 0.672396  acc: 57.6923%(615/1066)
 * **Example2**
 
 	```
-	./main.py -predict="You just make me so sad and I have to leave you ." -snapshot="./snapshot/2017-02-11-15-50/snapshot_steps1500.pt" 
+	./main.py -predict="You just make me so sad and I have to leave you ."\
+	          -snapshot="./snapshot/2017-02-11-15-50/snapshot_steps1500.pt" 
 	```
 	You will get:
 	
@@ -99,7 +118,7 @@ Evaluation - loss: 0.672396  acc: 57.6923%(615/1066)
 	[Label] negative
 	```
 
-
+Your text must be separated by space, even punctuation.
 
 ## Reference
 * [Convolutional Neural Networks for Sentence Classification](https://arxiv.org/abs/1408.5882)

@@ -1,20 +1,46 @@
 import re
 import os
 import random
+import tarfile
+from six.moves import urllib
 from torchtext import data
 
 
-class MR(data.ZipDataset):
+class TarDataset(data.Dataset):
+    """Defines a Dataset loaded from a downloadable tar archive.
+
+    Attributes:
+        url: URL where the tar archive can be downloaded.
+        filename: Filename of the downloaded tar archive.
+        dirname: Name of the top-level directory within the zip archive that
+            contains the data files.
+    """
+
+    @classmethod
+    def download_or_unzip(cls, root):
+        path = os.path.join(root, cls.dirname)
+        if not os.path.isdir(path):
+            tpath = os.path.join(root, cls.filename)
+            if not os.path.isfile(tpath):
+                print('downloading')
+                urllib.request.urlretrieve(cls.url, tpath)
+            with tarfile.open(tpath, 'r') as tfile:
+                print('extracting')
+                tfile.extractall(root)
+        return os.path.join(path, '')
+
+
+class MR(TarDataset):
 
     url = 'https://www.cs.cornell.edu/people/pabo/movie-review-data/rt-polaritydata.tar.gz'
     filename = 'rt-polaritydata.tar'
-    dirname = os.path.join('rt-polaritydata', 'rt-polaritydata')
+    dirname = 'rt-polaritydata'
 
     @staticmethod
     def sort_key(ex):
         return len(ex.text)
 
-    def __init__(self, text_field, label_field, path='.', examples=None, **kwargs):
+    def __init__(self, text_field, label_field, path=None, examples=None, **kwargs):
         """Create an MR dataset instance given a path and fields.
 
         Arguments:
@@ -49,7 +75,7 @@ class MR(data.ZipDataset):
         fields = [('text', text_field), ('label', label_field)]
 
         if examples is None:
-            path = os.path.expanduser(path)
+            path = self.dirname if path is None else path
             examples = []
             with open(os.path.join(path, 'rt-polarity.neg')) as f:
                 examples += [
@@ -60,13 +86,14 @@ class MR(data.ZipDataset):
         super(MR, self).__init__(examples, fields, **kwargs)
 
     @classmethod
-    def splits(cls, text_field, label_field, dev_ratio=.1, root='.', **kwargs):
+    def splits(cls, text_field, label_field, dev_ratio=.1, shuffle=True ,root='.', **kwargs):
         """Create dataset objects for splits of the MR dataset.
 
         Arguments:
             text_field: The field that will be used for the sentence.
             label_field: The field that will be used for label data.
             dev_ratio: The ratio that will be used to get split validation dataset.
+            shuffle: Whether to shuffle the data before split.
             root: The root directory that the dataset's zip archive will be
                 expanded into; therefore the directory in whose trees
                 subdirectory the data files will be stored.
@@ -76,7 +103,7 @@ class MR(data.ZipDataset):
         """
         path = cls.download_or_unzip(root)
         examples = cls(text_field, label_field, path=path, **kwargs).examples
-        random.shuffle(examples)
+        if shuffle: random.shuffle(examples)
         dev_index = -1 * int(dev_ratio*len(examples))
 
         return (cls(text_field, label_field, examples=examples[:dev_index]),

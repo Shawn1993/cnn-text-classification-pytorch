@@ -93,3 +93,12 @@ ENV/
 
 # model cache
 *.pt
+
+# dataset
+rt-polaritydata
+trees
+*.tar
+*.zip
+
+# pycharm
+.idea

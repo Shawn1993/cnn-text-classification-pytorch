@@ -31,7 +31,11 @@ def train(train_iter, dev_iter, model, args):
                 corrects = (torch.max(logit, 1)[1].view(target.size()).data == target.data).sum()
                 accuracy = corrects/batch.batch_size * 100.0
                 sys.stdout.write(
-                    '\rBatch[{}] - loss: {:.6f}  acc: {:.4f}%'.format(steps, loss.data[0], accuracy))
+                    '\rBatch[{}] - loss: {:.6f}  acc: {:.4f}%({}/{})'.format(steps, 
+                                                                             loss.data[0], 
+                                                                             accuracy,
+                                                                             corrects,
+                                                                             batch.batch_size))
             if steps % args.test_interval == 0:
                 eval(dev_iter, model, args)
             if steps % args.save_interval == 0:
@@ -75,6 +79,7 @@ def predict(text, model, text_field, label_feild):
     text = [[text_field.vocab.stoi[x] for x in text]]
     x = text_field.tensor_type(text)
     x = autograd.Variable(x, volatile=True)
+    print(x)
     output = model(x)
     _, predicted = torch.max(output, 1)
     return label_feild.vocab.itos[predicted.data[0][0]+1]
