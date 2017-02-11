@@ -1,8 +1,12 @@
+#! /usr/bin/env python
+
+
+import os
 import argparse
+import datetime
 import torch
 import torchtext.data as data
 import torchtext.datasets as datasets
-
 import model
 import train
 import mydatasets
@@ -28,15 +32,16 @@ parser.add_argument('-num-workers', type=int, default=0, help='how many subproce
 # log
 parser.add_argument('-log-interval', type=int, default=1, help='how many batches to wait before logging training status')
 parser.add_argument('-test-interval', type=int, default=100, help='how many epochs to wait before testing')
-parser.add_argument('-save-interval', type=int, default=500, help='how many epochs to wait before saving')
-parser.add_argument('-test', action='store_true', default=False, help='train or test')
+parser.add_argument('-save-interval', type=int, default=100, help='how many epochs to wait before saving')
+parser.add_argument('-predict', type=str, default=None, help='predict the sentence given')
 parser.add_argument('-snapshot', type=str, default=None, help='filename of model snapshot [default: None]')
-parser.add_argument('-save-dir', type=str, default='', help='where to save the checkpoint')
+parser.add_argument('-save-dir', type=str, default='snapshot', help='where to save the checkpoint')
 args = parser.parse_args()
 args.cuda = not args.cpu and torch.cuda.is_available()
 args.kernel_sizes = [int(k) for k in args.kernel_sizes.split(',')]
+args.save_dir = os.path.join(args.save_dir, datetime.datetime.now().strftime('%Y-%m-%d-%H-%M'))
 
-# load SST
+# load SST dataset
 '''
 print("Loading data...")
 text_field = data.Field(lower=True)
@@ -52,7 +57,7 @@ train_iter, dev_iter, test_iter = data.BucketIterator.splits(
                                     device=-1, repeat=False)
 '''
 
-# load MR
+# load MR dataset
 print("Loading data...")
 text_field = data.Field(lower=True)
 label_field = data.Field(sequential=False)
@@ -62,14 +67,22 @@ label_field.build_vocab(train_data)
 train_iter, dev_iter = data.Iterator.splits((train_data, dev_data), 
                                     batch_sizes=(args.batch_size, len(dev_data)),
                                     device=-1, repeat=False)
-# args
+
+# args from vacab
 args.embed_num = len(text_field.vocab)
+
 # model
-cnn = model.CNN_Text(args)
-# train
-if args.test: 
-    if args.snapshot is None:
-        train.test(test_iter, cnn, args)
+if args.snapshot is None:
+    cnn = model.CNN_Text(args)
+else :
+    print('Loading model from [%s]...' % args.snapshot)
+    cnn = torch.load(args.snapshot)
+
+# train or predict
+if args.predict is not None:
+    label = train.predict(args.predict, cnn, text_field, label_field)
+    print('\n[Text]  %s'% args.predict)
+    print('[Label] %s\n'% label)
 else: 
     train.train(train_iter, dev_iter, cnn, args)
 

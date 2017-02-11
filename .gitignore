@@ -90,3 +90,6 @@ ENV/
 
 # Mac
 .DS_Store
+
+# model cache
+*.pt

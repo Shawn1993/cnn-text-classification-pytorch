@@ -1,6 +1,7 @@
 import os
 import sys
 import torch
+import torch.autograd as autograd
 import torch.nn.functional as F
 
 
@@ -34,8 +35,9 @@ def train(train_iter, dev_iter, model, args):
             if steps % args.test_interval == 0:
                 eval(dev_iter, model, args)
             if steps % args.save_interval == 0:
+                if not os.path.isdir(args.save_dir): os.makedirs(args.save_dir)
                 save_prefix = os.path.join(args.save_dir, 'snapshot')
-                save_path = '{}_epoch_{}.pt'.format(save_prefix, epoch)
+                save_path = '{}_steps{}.pt'.format(save_prefix, steps)
                 torch.save(model, save_path)
 
 
@@ -65,7 +67,14 @@ def eval(data_iter, model, args):
                                                                        size))
 
 
-def predict(x, model):
+def predict(text, model, text_field, label_feild):
+    assert isinstance(text, str)
+    model.eval()
+    text = text_field.tokenize(text)
+    text = text_field.preprocess(text)
+    text = [[text_field.vocab.stoi[x] for x in text]]
+    x = text_field.tensor_type(text)
+    x = autograd.Variable(x, volatile=True)
     output = model(x)
     _, predicted = torch.max(output, 1)
-    return predicted
+    return label_feild.vocab.itos[predicted.data[0][0]+1]
