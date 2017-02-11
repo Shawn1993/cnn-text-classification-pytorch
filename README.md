@@ -55,7 +55,7 @@ optional arguments:
                         how many epochs to wait before testing
   -save-interval SAVE_INTERVAL
                         how many epochs to wait before saving
-  -test                 train or test
+  -predict PREDICT      predict the sentence given
   -snapshot SNAPSHOT    filename of model snapshot [default: None]
   -save-dir SAVE_DIR    where to save the checkpoint
 ```
