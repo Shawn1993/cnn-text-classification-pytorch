@@ -84,7 +84,7 @@ Evaluation - loss: 0.672396  acc: 57.6923%(615/1066)
 If you has construct you test set, you make testing like:
 
 ```
-/main.py -test -snapshot="./snapshot/2017-02-11-15-50/snapshot_steps1500.pt
+/main.py -test -snapshot="./snapshot/2017-02-11_15-50-53/snapshot_steps1500.pt
 ```
 The snapshot option means where your model load from. If you don't assign it, the model will start from scratch.
 
@@ -93,12 +93,12 @@ The snapshot option means where your model load from. If you don't assign it, th
 
 	```
 	./main.py -predict="Hello my dear , I love you so much ." \
-	          -snapshot="./snapshot/2017-02-11-15-50/snapshot_steps1500.pt" 
+	          -snapshot="./snapshot/2017-02-11_15-50-53/snapshot_steps1500.pt" 
 	```
 	You will get:
 	
 	```
-	Loading model from [./snapshot/2017-02-11-15-50/snapshot_steps1500.pt]...
+	Loading model from [./snapshot/2017-02-11_15-50-53/snapshot_steps1500.pt]...
 	
 	[Text]  Hello my dear , I love you so much .
 	[Label] positive
@@ -107,18 +107,18 @@ The snapshot option means where your model load from. If you don't assign it, th
 
 	```
 	./main.py -predict="You just make me so sad and I have to leave you ."\
-	          -snapshot="./snapshot/2017-02-11-15-50/snapshot_steps1500.pt" 
+	          -snapshot="./snapshot/2017-02-11_15-50-53/snapshot_steps1500.pt" 
 	```
 	You will get:
 	
 	```
-	Loading model from [./snapshot/2017-02-11-15-50/snapshot_steps1500.pt]...
+	Loading model from [./snapshot/2017-02-11_15-50-53/snapshot_steps1500.pt]...
 	
 	[Text]  You just make me so sad and I have to leave you .
 	[Label] negative
 	```
 
-Your text must be separated by space, even punctuation.
+Your text must be separated by space, even punctuation.And, your text should longer then the max kernel size.
 
 ## Reference
 * [Convolutional Neural Networks for Sentence Classification](https://arxiv.org/abs/1408.5882)
