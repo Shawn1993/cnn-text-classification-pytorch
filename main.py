@@ -75,7 +75,7 @@ train_iter, dev_iter = mr(text_field, label_field, device=-1, repeat=False)
 # update args and print
 args.embed_num = len(text_field.vocab)
 args.class_num = len(label_field.vocab) - 1
-args.cuda = args.no_cuda and torch.cuda.is_available(); del args.no_cuda
+args.cuda = (not args.no_cuda) and torch.cuda.is_available(); del args.no_cuda
 args.kernel_sizes = [int(k) for k in args.kernel_sizes.split(',')]
 args.save_dir = os.path.join(args.save_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
 
@@ -93,6 +93,9 @@ else :
         cnn = torch.load(args.snapshot)
     except :
         print("Sorry, This snapshot doesn't exist."); exit()
+
+if args.cuda:
+    cnn = cnn.cuda()
         
 
 # train or predict

@@ -77,10 +77,10 @@ class MR(TarDataset):
         if examples is None:
             path = self.dirname if path is None else path
             examples = []
-            with open(os.path.join(path, 'rt-polarity.neg')) as f:
+            with open(os.path.join(path, 'rt-polarity.neg'), errors='ignore') as f:
                 examples += [
                     data.Example.fromlist([line, 'negative'], fields) for line in f]
-            with open(os.path.join(path, 'rt-polarity.pos')) as f:
+            with open(os.path.join(path, 'rt-polarity.pos'), errors='ignore') as f:
                 examples += [
                     data.Example.fromlist([line, 'positive'], fields) for line in f]
         super(MR, self).__init__(examples, fields, **kwargs)
