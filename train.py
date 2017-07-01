@@ -29,7 +29,7 @@ def train(train_iter, dev_iter, model, args):
             steps += 1
             if steps % args.log_interval == 0:
                 corrects = (torch.max(logit, 1)[1].view(target.size()).data == target.data).sum()
-                accuracy = corrects/batch.batch_size * 100.0
+                accuracy = 100.0 * corrects/batch.batch_size
                 sys.stdout.write(
                     '\rBatch[{}] - loss: {:.6f}  acc: {:.4f}%({}/{})'.format(steps, 
                                                                              loss.data[0], 
@@ -63,7 +63,7 @@ def eval(data_iter, model, args):
 
     size = len(data_iter.dataset)
     avg_loss = loss.data[0]/size
-    accuracy = corrects/size * 100.0
+    accuracy = 100.0 * corrects/size
     model.train()
     print('\nEvaluation - loss: {:.6f}  acc: {:.4f}%({}/{}) \n'.format(avg_loss, 
                                                                        accuracy, 
