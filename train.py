@@ -77,7 +77,7 @@ def eval(data_iter, model, args):
 def predict(text, model, text_field, label_feild):
     assert isinstance(text, str)
     model.eval()
-    text = text_field.tokenize(text)
+    # text = text_field.tokenize(text)
     text = text_field.preprocess(text)
     text = [[text_field.vocab.stoi[x] for x in text]]
     x = text_field.tensor_type(text)
