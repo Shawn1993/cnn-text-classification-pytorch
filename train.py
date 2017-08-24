@@ -65,7 +65,7 @@ def eval(data_iter, model, args):
                      [1].view(target.size()).data == target.data).sum()
 
     size = len(data_iter.dataset)
-    avg_loss = loss.data[0]/size
+    avg_loss = avg_loss/size
     accuracy = 100.0 * corrects/size
     model.train()
     print('\nEvaluation - loss: {:.6f}  acc: {:.4f}%({}/{}) \n'.format(avg_loss, 
