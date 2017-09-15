@@ -5,6 +5,8 @@ This is the implementation of Kim's [Convolutional Neural Networks for Sentence 
 [https://github.com/yoonkim/CNN_sentence](https://github.com/yoonkim/CNN_sentence)
 2. Denny Britz has an implementation in Tensorflow:
 [https://github.com/dennybritz/cnn-text-classification-tf](https://github.com/dennybritz/cnn-text-classification-tf)
+3. Alexander Rakhlin's implementation in Keras;
+[https://github.com/alexander-rakhlin/CNN-for-Sentence-Classification-in-Keras](https://github.com/alexander-rakhlin/CNN-for-Sentence-Classification-in-Keras)
 
 ## Requirement
 * python 3
