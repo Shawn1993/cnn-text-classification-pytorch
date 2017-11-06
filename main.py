@@ -100,7 +100,7 @@ if args.cuda:
 
 # train or predict
 if args.predict is not None:
-    label = train.predict(args.predict, cnn, text_field, label_field)
+    label = train.predict(args.predict, cnn, text_field, label_field, args.cuda)
     print('\n[Text]  {}[Label] {}\n'.format(args.predict, label))
 elif args.test :
     try:
