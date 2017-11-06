@@ -109,6 +109,9 @@ elif args.test :
         print("\nSorry. The test dataset doesn't  exist.\n")
 else :
     print()
-    train.train(train_iter, dev_iter, cnn, args)
-    
+    try:
+        train.train(train_iter, dev_iter, cnn, args)
+    except KeyboardInterrupt:
+        print('-' * 89)
+        print('Exiting from training early')
 
