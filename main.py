@@ -100,8 +100,8 @@ if args.cuda:
 
 # train or predict
 if args.predict is not None:
-    label = train.predict(args.predict, cnn, text_field, label_field)
-    print('\n[Text]  {}[Label] {}\n'.format(args.predict, label))
+    label = train.predict(args.predict, cnn, text_field, label_field, args.cuda)
+    print('\n[Text]  {}\n[Label] {}\n'.format(args.predict, label))
 elif args.test :
     try:
         train.eval(test_iter, cnn, args) 
@@ -109,6 +109,9 @@ elif args.test :
         print("\nSorry. The test dataset doesn't  exist.\n")
 else :
     print()
-    train.train(train_iter, dev_iter, cnn, args)
-    
+    try:
+        train.train(train_iter, dev_iter, cnn, args)
+    except KeyboardInterrupt:
+        print('-' * 89)
+        print('Exiting from training early')
 
