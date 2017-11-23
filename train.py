@@ -12,6 +12,8 @@ def train(train_iter, dev_iter, model, args):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     steps = 0
+    best_acc = 0
+    last_step = 0
     model.train()
     for epoch in range(1, args.epochs+1):
         for batch in train_iter:
@@ -40,12 +42,17 @@ def train(train_iter, dev_iter, model, args):
                                                                              corrects,
                                                                              batch.batch_size))
             if steps % args.test_interval == 0:
-                eval(dev_iter, model, args)
-            if steps % args.save_interval == 0:
-                if not os.path.isdir(args.save_dir): os.makedirs(args.save_dir)
-                save_prefix = os.path.join(args.save_dir, 'snapshot')
-                save_path = '{}_steps{}.pt'.format(save_prefix, steps)
-                torch.save(model, save_path)
+                dev_acc = eval(dev_iter, model, args)
+                if dev_acc > best_acc:
+                    best_acc = dev_acc
+                    last_step = steps
+                    if args.save_best:
+                        save(model, args.save_dir, 'best', steps)
+                else:
+                    if steps - last_step >= args.early_stop:
+                        print('early stop by {} steps.'.format(args.early_stop))
+            elif steps % args.save_interval == 0:
+                save(model, args.save_dir, 'snapshot', steps)
 
 
 def eval(data_iter, model, args):
@@ -65,13 +72,13 @@ def eval(data_iter, model, args):
                      [1].view(target.size()).data == target.data).sum()
 
     size = len(data_iter.dataset)
-    avg_loss = avg_loss/size
+    avg_loss /= size
     accuracy = 100.0 * corrects/size
-    model.train()
     print('\nEvaluation - loss: {:.6f}  acc: {:.4f}%({}/{}) \n'.format(avg_loss, 
                                                                        accuracy, 
                                                                        corrects, 
                                                                        size))
+    return accuracy
 
 
 def predict(text, model, text_field, label_feild, cuda_flag):
@@ -83,8 +90,16 @@ def predict(text, model, text_field, label_feild, cuda_flag):
     x = text_field.tensor_type(text)
     x = autograd.Variable(x, volatile=True)
     if cuda_flag:
-        x =x.cuda()
+        x = x.cuda()
     print(x)
     output = model(x)
     _, predicted = torch.max(output, 1)
     return label_feild.vocab.itos[predicted.data[0][0]+1]
+
+
+def save(model, save_dir, save_prefix, steps):
+    if not os.path.isdir(save_dir):
+        os.makedirs(save_dir)
+    save_prefix = os.path.join(save_dir, save_prefix)
+    save_path = '{}_steps_{}.pt'.format(save_prefix, steps)
+    torch.save(model.state_dict(), save_path)

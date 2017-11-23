@@ -19,8 +19,10 @@ parser.add_argument('-log-interval',  type=int, default=1,   help='how many step
 parser.add_argument('-test-interval', type=int, default=100, help='how many steps to wait before testing [default: 100]')
 parser.add_argument('-save-interval', type=int, default=500, help='how many steps to wait before saving [default:500]')
 parser.add_argument('-save-dir', type=str, default='snapshot', help='where to save the snapshot')
+parser.add_argument('-early-stop', type=int, default=1000, help='iteration numbers to stop without performance increasing')
+parser.add_argument('-save-best', type=bool, default=True, help='whether to save when get best performance')
 # data 
-parser.add_argument('-shuffle', action='store_true', default=False, help='shuffle the data every epoch' )
+parser.add_argument('-shuffle', action='store_true', default=False, help='shuffle the data every epoch')
 # model
 parser.add_argument('-dropout', type=float, default=0.5, help='the probability for dropout [default: 0.5]')
 parser.add_argument('-max-norm', type=float, default=3.0, help='l2 constraint of parameters [default: 3.0]')
@@ -30,7 +32,7 @@ parser.add_argument('-kernel-sizes', type=str, default='3,4,5', help='comma-sepa
 parser.add_argument('-static', action='store_true', default=False, help='fix the embedding')
 # device
 parser.add_argument('-device', type=int, default=-1, help='device to use for iterate data, -1 mean cpu [default: -1]')
-parser.add_argument('-no-cuda', action='store_true', default=False, help='disable the gpu' )
+parser.add_argument('-no-cuda', action='store_true', default=False, help='disable the gpu')
 # option
 parser.add_argument('-snapshot', type=str, default=None, help='filename of model snapshot [default: None]')
 parser.add_argument('-predict', type=str, default=None, help='predict the sentence given')
@@ -69,7 +71,7 @@ print("\nLoading data...")
 text_field = data.Field(lower=True)
 label_field = data.Field(sequential=False)
 train_iter, dev_iter = mr(text_field, label_field, device=-1, repeat=False)
-#train_iter, dev_iter, test_iter = sst(text_field, label_field, device=-1, repeat=False)
+# train_iter, dev_iter, test_iter = sst(text_field, label_field, device=-1, repeat=False)
 
 
 # update args and print
@@ -85,16 +87,13 @@ for attr, value in sorted(args.__dict__.items()):
 
 
 # model
-if args.snapshot is None:
-    cnn = model.CNN_Text(args)
-else :
-    print('\nLoading model from [%s]...' % args.snapshot)
-    try:
-        cnn = torch.load(args.snapshot)
-    except :
-        print("Sorry, This snapshot doesn't exist."); exit()
+cnn = model.CNN_Text(args)
+if args.snapshot is not None:
+    print('\nLoading model from {}...'.format(args.snapshot))
+    cnn.load_state_dict(torch.load(args.snapshot))
 
 if args.cuda:
+    torch.cuda.set_device(args.device)
     cnn = cnn.cuda()
         
 
@@ -102,16 +101,16 @@ if args.cuda:
 if args.predict is not None:
     label = train.predict(args.predict, cnn, text_field, label_field, args.cuda)
     print('\n[Text]  {}\n[Label] {}\n'.format(args.predict, label))
-elif args.test :
+elif args.test:
     try:
         train.eval(test_iter, cnn, args) 
     except Exception as e:
         print("\nSorry. The test dataset doesn't  exist.\n")
-else :
+else:
     print()
     try:
         train.train(train_iter, dev_iter, cnn, args)
     except KeyboardInterrupt:
-        print('-' * 89)
+        print('\n' + '-' * 89)
         print('Exiting from training early')
 
