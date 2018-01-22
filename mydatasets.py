@@ -2,7 +2,7 @@ import re
 import os
 import random
 import tarfile
-from six.moves import urllib
+import urllib
 from torchtext import data
 
 
@@ -86,7 +86,7 @@ class MR(TarDataset):
         super(MR, self).__init__(examples, fields, **kwargs)
 
     @classmethod
-    def splits(cls, text_field, label_field, dev_ratio=.1, shuffle=True ,root='.', **kwargs):
+    def splits(cls, text_field, label_field, dev_ratio=.1, shuffle=True, root='.', **kwargs):
         """Create dataset objects for splits of the MR dataset.
 
         Arguments:
