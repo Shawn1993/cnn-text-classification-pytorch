@@ -94,7 +94,8 @@ def predict(text, model, text_field, label_feild, cuda_flag):
     print(x)
     output = model(x)
     _, predicted = torch.max(output, 1)
-    return label_feild.vocab.itos[predicted.data[0][0]+1]
+    #return label_feild.vocab.itos[predicted.data[0][0]+1]
+    return label_feild.vocab.itos[predicted.data[0]+1]
 
 
 def save(model, save_dir, save_prefix, steps):
