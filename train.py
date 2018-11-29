@@ -87,8 +87,8 @@ def predict(text, model, text_field, label_feild, cuda_flag):
     # text = text_field.tokenize(text)
     text = text_field.preprocess(text)
     text = [[text_field.vocab.stoi[x] for x in text]]
-    x = text_field.tensor_type(text)
-    x = autograd.Variable(x, volatile=True)
+    x = torch.tensor(text)
+    x = autograd.Variable(x)
     if cuda_flag:
         x = x.cuda()
     print(x)
