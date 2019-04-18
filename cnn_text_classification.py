@@ -158,9 +158,21 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         self.__text_field = Field(lower=True)
         self.__label_field = Field(sequential=False)
         self.__text_field.preprocessing = Pipeline(self.__preprocess_text)
+        max_krnl_sz = int(self.kernel_sizes[self.kernel_sizes.rfind(",") + 1:])
+        X, y = list(X), list(y)
+        sample_weight = None if sample_weight is None else list(sample_weight)
+
+        for i in range(len(X) - 1, -1, -1):
+            if len(self.__text_field.preprocess(X[i])) < max_krnl_sz:
+                del X[i]
+                del y[i]
+
+                if sample_weight is not None:
+                    del sample_weight[i]
+
         fields = [("text", self.__text_field), ("label", self.__label_field)]
-        weights = [1 for yi in y] if sample_weight is None else sample_weight
         exmpl = [Example.fromlist([X[i], y[i]], fields) for i in range(len(X))]
+        weights = [1 for yi in y] if sample_weight is None else sample_weight
 
         if self.class_weight is not None:
             cw = self.class_weight
