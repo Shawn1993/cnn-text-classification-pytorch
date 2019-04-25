@@ -19,7 +19,6 @@ Fork of Shawn Ng's [CNNs for Sentence Classification in PyTorch](https://github.
 * Features my idiosyncratic coding style.
 
 ## To Do
-* Add support for different scoring methods (balanced accuracy, recall, etc.).
 * Add support for cross-validation during training.
 
 ## Parameters
@@ -77,8 +76,14 @@ Fork of Shawn Ng's [CNNs for Sentence Classification in PyTorch](https://github.
 **vectors : string, optional (default=None)**
   Which pretrained TorchText vectors to use (see [torchtext.vocab.pretrained_aliases](https://torchtext.readthedocs.io/en/latest/vocab.html#pretrained-aliases) for options).
 
-**preprocessor : callable or None (default=None)**
+**preprocessor : callable or None, optional (default=None)**
   Override default string preprocessing.
+
+**scoring : callable or None, optional (default=sklearn.metrics.accuracy_score)**
+  Scoring method for testing model performance during fitting.
+
+**verbose : integer, optional (default=0)**
+  Controls the verbosity when fitting.
 
 ## Methods
 **fit(X, y, sample_weight=None)**

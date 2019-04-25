@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from collections import Counter
 from copy import deepcopy
 from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.metrics import accuracy_score
 from time import time
 from torch.autograd import Variable
 from torchtext.data import Dataset, Example, Field, Iterator, Pipeline
@@ -16,7 +17,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
                  embed_dim=128, kernel_num=100, kernel_sizes="3,4,5",
                  static=False, device=-1, cuda=True, class_weight=None,
                  split_ratio=0.9, random_state=None, vectors=None,
-                 preprocessor=None, verbose=0):
+                 preprocessor=None, scoring=accuracy_score, verbose=0):
         self.lr = lr
         self.epochs = epochs
         self.batch_size = batch_size
@@ -36,6 +37,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         self.random_state = random_state
         self.vectors = vectors
         self.preprocessor = preprocessor
+        self.scoring = scoring
         self.verbose = verbose
 
     def __clean_str(self, string):
@@ -57,7 +59,8 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
     def __eval(self, data_iter):
         self.__model.eval()
 
-        corrects = 0
+        preds = []
+        targets = []
 
         for batch in data_iter:
             feature, target = batch.text, batch.label
@@ -72,10 +75,10 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
 
             F.cross_entropy(logit, target, reduction="sum")
 
-            predictions = torch.max(logit, 1)[1].view(target.size())
-            corrects += (predictions.data == target.data).sum()
+            preds += torch.max(logit, 1)[1].view(target.size()).data.tolist()
+            targets += target.data.tolist()
 
-        return 100.0 * corrects / len(data_iter.dataset)
+        return self.scoring(targets, preds)
 
     def fit(self, X, y, sample_weight=None):
         start = time() if self.verbose > 0 else None
@@ -95,6 +98,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         optimizer = torch.optim.Adam(self.__model.parameters(), lr=self.lr,
                                      weight_decay=self.max_norm)
         steps, best_acc, last_step = 0, 0, 0
+        active = True
 
         self.__model.train()
 
@@ -124,18 +128,18 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
                         if self.save_best:
                             best_model = deepcopy(self.__model)
                     elif steps - last_step >= self.early_stop:
-                        if self.save_best:
-                            self.__model = best_model
+                        active = False
+                        break
 
-                        if self.verbose > 0:
-                            self.__print_elapsed_time(time() - start)
-                        return self
+            if not active:
+                break
 
         self.__model = best_model if self.save_best else self.__model
 
         if self.verbose > 0:
             self.__print_elapsed_time(time() - start)
 
+        torch.cuda.empty_cache()
         return self
 
     def predict(self, X):
@@ -162,6 +166,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
 
             y_pred.append(self.__label_field.vocab.itos[predicted.data[0] + 1])
 
+        torch.cuda.empty_cache()
         return y_pred
 
     def __preprocess(self, X, y, sample_weight):
