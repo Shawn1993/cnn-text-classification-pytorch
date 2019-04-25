@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from collections import Counter
 from copy import deepcopy
 from sklearn.base import BaseEstimator, ClassifierMixin
+from time import time
 from torch.autograd import Variable
 from torchtext.data import Dataset, Example, Field, Iterator, Pipeline
 
@@ -15,7 +16,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
                  embed_dim=128, kernel_num=100, kernel_sizes="3,4,5",
                  static=False, device=-1, cuda=True, class_weight=None,
                  split_ratio=0.9, random_state=None, vectors=None,
-                 preprocessor=None):
+                 preprocessor=None, verbose=0):
         self.lr = lr
         self.epochs = epochs
         self.batch_size = batch_size
@@ -35,6 +36,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         self.random_state = random_state
         self.vectors = vectors
         self.preprocessor = preprocessor
+        self.verbose = verbose
 
     def __clean_str(self, string):
         string = re.sub(r"[^A-Za-z0-9(),!?\'\`]", " ", string)
@@ -76,13 +78,15 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         return 100.0 * corrects / len(data_iter.dataset)
 
     def fit(self, X, y, sample_weight=None):
+        start = time() if self.verbose > 0 else None
         train_iter, dev_iter = self.__preprocess(X, y, sample_weight)
         embed_num = len(self.__text_field.vocab)
         class_num = len(self.__label_field.vocab) - 1
         kernel_sizes = [int(k) for k in self.kernel_sizes.split(",")]
         self.__model = CNNText(embed_num, self.embed_dim, class_num,
                                self.kernel_num, kernel_sizes, self.dropout,
-                               self.static)
+                               self.static,
+                               vectors=self.__text_field.vocab.vectors)
 
         if self.cuda and torch.cuda.is_available():
             torch.cuda.set_device(self.device)
@@ -123,9 +127,15 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
                         if self.save_best:
                             self.__model = best_model
 
+                        if self.verbose > 0:
+                            self.__print_elapsed_time(time() - start)
                         return self
 
         self.__model = best_model if self.save_best else self.__model
+
+        if self.verbose > 0:
+            self.__print_elapsed_time(time() - start)
+
         return self
 
     def predict(self, X):
@@ -208,15 +218,39 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         if self.preprocessor is None:
             return self.__clean_str(text)
 
-        return self.preprocessor(text)
+        return self.__clean_str(self.preprocessor(text))
+
+    def __print_elapsed_time(self, seconds):
+        sc = round(seconds)
+        mn = int(sc / 60)
+        sc = sc % 60
+        hr = int(mn / 60)
+        mn = mn % 60
+        hr = "{} hour{}".format(hr, "s" if hr > 1 else "") if hr > 0 else ""
+        mn = "{} minute{}".format(mn, "s" if mn > 1 else "") if mn > 0 else ""
+        sc = "{} second{}".format(sc, "s" if sc > 1 else "") if sc > 0 else ""
+        times = [t for t in [hr, mn, sc] if len(t) > 0]
+
+        if len(times) == 3:
+            times = " and ".format(", ".format(hr, mn), sc)
+        elif len(times) == 2:
+            times = " and ".join(times)
+        else:
+            times = times[0]
+
+        print("Completed training in {}.".format(times))
 
 
 class CNNText(nn.Module):
     def __init__(self, embed_num, embed_dim, class_num, kernel_num,
-                 kernel_sizes, dropout, static):
+                 kernel_sizes, dropout, static, vectors=None):
         super(CNNText, self).__init__()
 
         self.__embed = nn.Embedding(embed_num, embed_dim)
+
+        if vectors is not None:
+            self.__embed = self.__embed.from_pretrained(vectors)
+
         Ks = kernel_sizes
         module_list = [nn.Conv2d(1, kernel_num, (K, embed_dim)) for K in Ks]
         self.__convs1 = nn.ModuleList(module_list)
