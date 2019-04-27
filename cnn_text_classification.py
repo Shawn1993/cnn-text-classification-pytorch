@@ -81,6 +81,12 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         return self.scoring(targets, preds)
 
     def fit(self, X, y, sample_weight=None):
+        if self.verbose > 1:
+            params = self.get_params().items()
+
+            print("Fitting with the following parameters:")
+            print("\n".join([": ".join([k, str(v)]) for k, v in params]))
+
         start = time() if self.verbose > 0 else None
         train_iter, dev_iter = self.__preprocess(X, y, sample_weight)
         embed_num = len(self.__text_field.vocab)
@@ -237,7 +243,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         times = [t for t in [hr, mn, sc] if len(t) > 0]
 
         if len(times) == 3:
-            times = " and ".format(", ".format(hr, mn), sc)
+            times = " and ".join(", ".join(hr, mn), sc)
         elif len(times) == 2:
             times = " and ".join(times)
         else:
@@ -268,12 +274,7 @@ class CNNText(nn.Module):
         return F.max_pool1d(x, x.size(2)).squeeze(2)
 
     def forward(self, x):
-        x = self.__embed(x)
-
-        if self.__static:
-            x = Variable(x)
-
-        x = x.unsqueeze(1)
-        x = [F.relu(conv(x)).squeeze(3) for conv in self.__convs1]
+        x = Variable(self.__embed(x)) if self.__static else self.__embed(x)
+        x = [F.relu(conv(x.unsqueeze(1))).squeeze(3) for conv in self.__convs1]
         x = [F.max_pool1d(i, i.size(2)).squeeze(2) for i in x]
         return self.__fc1(self.__dropout(torch.cat(x, 1)))
