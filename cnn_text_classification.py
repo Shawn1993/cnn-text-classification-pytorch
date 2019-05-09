@@ -81,6 +81,12 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         return self.scoring(targets, preds)
 
     def fit(self, X, y, sample_weight=None):
+        if self.random_state is not None:
+            torch.manual_seed(self.random_state)
+
+        torch.backends.cudnn.deterministic = self.random_state is not None
+        torch.backends.cudnn.benchmark = self.random_state is None
+
         if self.verbose > 1:
             params = self.get_params().items()
 
