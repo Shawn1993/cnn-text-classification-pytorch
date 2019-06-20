@@ -59,14 +59,11 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
     def __eval(self, data_iter):
         self.__model.eval()
 
-        preds = []
-        targets = []
+        preds, targets = [], []
 
         for batch in data_iter:
             feature, target = batch.text, batch.label
-
-            feature.data.t_()
-            target.data.sub_(1)
+            feature, target = feature.data.t(), target.data.sub(1)
 
             if self.cuda and torch.cuda.is_available():
                 feature, target = feature.cuda(), target.cuda()
@@ -117,9 +114,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         for epoch in range(self.epochs):
             for batch in train_iter:
                 feature, target = batch.text, batch.label
-
-                feature.data.t_()
-                target.data.sub_(1)
+                feature, target = feature.data.t(), target.data.sub(1)
 
                 if self.cuda and torch.cuda.is_available():
                     feature, target = feature.cuda(), target.cuda()
@@ -249,7 +244,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         times = [t for t in [hr, mn, sc] if len(t) > 0]
 
         if len(times) == 3:
-            times = " and ".join(", ".join(hr, mn), sc)
+            times = " and ".join([", ".join([hr, mn]), sc])
         elif len(times) == 2:
             times = " and ".join(times)
         else:
