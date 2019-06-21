@@ -248,7 +248,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         elif len(times) == 2:
             times = " and ".join(times)
         else:
-            times = times[0]
+            times = times[0] if len(times) > 0 else "less than 1 second"
 
         print("Completed training in {}.".format(times))
 

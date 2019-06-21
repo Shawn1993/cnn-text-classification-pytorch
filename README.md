@@ -11,7 +11,6 @@ Fork of Shawn Ng's [CNNs for Sentence Classification in PyTorch](https://github.
 ## Known Issues
 * The predict method is probably not as efficient as it could be.
 * Doesn't play well with GridSearchCV if num_jobs isn't 1.
-* Weights are represented by upsampling.
 * Only supports pre-trained word vectors from TorchText.
 * The random_state parameter probably only works with integers or None.
 * Training samples shorter than the maximum kernel size are ignored.
