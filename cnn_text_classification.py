@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from collections import Counter
 from copy import deepcopy
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, make_scorer
 from time import time
 from torch.autograd import Variable
 from torchtext.data import Dataset, Example, Field, Iterator, Pipeline
@@ -17,7 +17,8 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
                  embed_dim=128, kernel_num=100, kernel_sizes="3,4,5",
                  static=False, device=-1, cuda=True, class_weight=None,
                  split_ratio=0.9, random_state=None, vectors=None,
-                 preprocessor=None, scoring=accuracy_score, verbose=0):
+                 preprocessor=None, scoring=make_scorer(accuracy_score),
+                 verbose=0):
         self.lr = lr
         self.epochs = epochs
         self.batch_size = batch_size
@@ -75,7 +76,9 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
             preds += torch.max(logit, 1)[1].view(target.size()).data.tolist()
             targets += target.data.tolist()
 
-        return self.scoring(targets, preds)
+        preds = [self.__label_field.vocab.itos[pred + 1] for pred in preds]
+        targets = [self.__label_field.vocab.itos[targ + 1] for targ in targets]
+        return self.scoring(_Eval(preds), None, targets)
 
     def fit(self, X, y, sample_weight=None):
         if self.random_state is not None:
@@ -95,10 +98,9 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         embed_num = len(self.__text_field.vocab)
         class_num = len(self.__label_field.vocab) - 1
         kernel_sizes = [int(k) for k in self.kernel_sizes.split(",")]
-        self.__model = CNNText(embed_num, self.embed_dim, class_num,
-                               self.kernel_num, kernel_sizes, self.dropout,
-                               self.static,
-                               vectors=self.__text_field.vocab.vectors)
+        self.__model = _CNNText(embed_num, self.embed_dim, class_num,
+                                self.kernel_num, kernel_sizes, self.dropout,
+                                self.static, self.__text_field.vocab.vectors)
 
         if self.cuda and torch.cuda.is_available():
             torch.cuda.set_device(self.device)
@@ -253,10 +255,10 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         print("Completed training in {}.".format(times))
 
 
-class CNNText(nn.Module):
+class _CNNText(nn.Module):
     def __init__(self, embed_num, embed_dim, class_num, kernel_num,
                  kernel_sizes, dropout, static, vectors=None):
-        super(CNNText, self).__init__()
+        super(_CNNText, self).__init__()
 
         self.__embed = nn.Embedding(embed_num, embed_dim)
 
@@ -279,3 +281,10 @@ class CNNText(nn.Module):
         x = [F.relu(conv(x.unsqueeze(1))).squeeze(3) for conv in self.__convs1]
         x = [F.max_pool1d(i, i.size(2)).squeeze(2) for i in x]
         return self.__fc1(self.__dropout(torch.cat(x, 1)))
+
+class _Eval():
+    def __init__(self, preds):
+        self.__preds = preds
+
+    def predict(self, X):
+        return self.__preds

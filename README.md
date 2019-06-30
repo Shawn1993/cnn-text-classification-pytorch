@@ -19,6 +19,7 @@ Fork of Shawn Ng's [CNNs for Sentence Classification in PyTorch](https://github.
 
 ## To Do
 * Add support for cross-validation during training.
+* Implement sample weights in eval scoring?
 
 ## Parameters
 **lr : float, optional (default=0.01)**
