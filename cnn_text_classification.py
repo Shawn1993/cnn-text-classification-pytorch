@@ -15,10 +15,10 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, lr=0.001, epochs=256, batch_size=64, test_interval=100,
                  early_stop=1000, save_best=True, dropout=0.5, max_norm=0.0,
                  embed_dim=128, kernel_num=100, kernel_sizes="3,4,5",
-                 static=False, device=-1, cuda=True, class_weight=None,
-                 split_ratio=0.9, random_state=None, vectors=None,
-                 preprocessor=None, scoring=make_scorer(accuracy_score),
-                 verbose=0):
+                 static=False, device=-1, cuda=True, activation_func="relu",
+                 scoring=make_scorer(accuracy_score), vectors=None,
+                 split_ratio=0.9, preprocessor=None, class_weight=None,
+                 random_state=None, verbose=0):
         self.lr = lr
         self.epochs = epochs
         self.batch_size = batch_size
@@ -33,12 +33,13 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         self.static = static
         self.device = device
         self.cuda = cuda
-        self.class_weight = class_weight
-        self.split_ratio = split_ratio
-        self.random_state = random_state
-        self.vectors = vectors
-        self.preprocessor = preprocessor
+        self.activation_func = activation_func
         self.scoring = scoring
+        self.vectors = vectors
+        self.split_ratio = split_ratio
+        self.preprocessor = preprocessor
+        self.class_weight = class_weight
+        self.random_state = random_state
         self.verbose = verbose
 
     def __clean_str(self, string):
@@ -100,7 +101,8 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         kernel_sizes = [int(k) for k in self.kernel_sizes.split(",")]
         self.__model = _CNNText(embed_num, self.embed_dim, class_num,
                                 self.kernel_num, kernel_sizes, self.dropout,
-                                self.static, self.__text_field.vocab.vectors)
+                                self.static, self.activation_func,
+                                vectors=self.__text_field.vocab.vectors)
 
         if self.cuda and torch.cuda.is_available():
             torch.cuda.set_device(self.device)
@@ -257,7 +259,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
 
 class _CNNText(nn.Module):
     def __init__(self, embed_num, embed_dim, class_num, kernel_num,
-                 kernel_sizes, dropout, static, vectors=None):
+                 kernel_sizes, dropout, static, activation_func, vectors=None):
         super(_CNNText, self).__init__()
 
         self.__embed = nn.Embedding(embed_num, embed_dim)
@@ -272,13 +274,16 @@ class _CNNText(nn.Module):
         self.__fc1 = nn.Linear(len(Ks) * kernel_num, class_num)
         self.__static = static
 
-    def conv_and_pool(self, x, conv):
-        x = F.relu(conv(x)).squeeze(3)
-        return F.max_pool1d(x, x.size(2)).squeeze(2)
+        if activation_func == "relu":
+            self.__f = F.relu
+        elif activation_func == "tanh":
+            self.__f = torch.tanh
+        else:
+            self.__f = lambda x: x
 
     def forward(self, x):
         x = Variable(self.__embed(x)) if self.__static else self.__embed(x)
-        x = [F.relu(conv(x.unsqueeze(1))).squeeze(3) for conv in self.__convs1]
+        x = [self.__f(cnv(x.unsqueeze(1))).squeeze(3) for cnv in self.__convs1]
         x = [F.max_pool1d(i, i.size(2)).squeeze(2) for i in x]
         return self.__fc1(self.__dropout(torch.cat(x, 1)))
 

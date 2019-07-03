@@ -10,7 +10,7 @@ Fork of Shawn Ng's [CNNs for Sentence Classification in PyTorch](https://github.
 
 ## Known Issues
 * The predict method is probably not as efficient as it could be.
-* Doesn't play well with GridSearchCV if num_jobs isn't 1.
+* Doesn't play well with GridSearchCV if num_jobs isn't 1 (unless not using CUDA).
 * Only supports pre-trained word vectors from TorchText.
 * The random_state parameter probably only works with integers or None.
 * Training samples shorter than the maximum kernel size are ignored.
@@ -64,23 +64,26 @@ Fork of Shawn Ng's [CNNs for Sentence Classification in PyTorch](https://github.
 **cuda : boolean, optional (default=True)**
   If true, use the GPU if available.
 
-**class_weight : dict, "balanced" or None, optional (default=None)**
-  Weights associated with each class (see class_weight parameter in existing scikit-learn classifiers).
+** activation_func : string, optional (default='relu')**
+  Activation function. If 'relu' or 'tanh', uses rectified linear unit or hyperbolic tangent, respectively. Otherwise, uses no activation function (f(x) = x).
 
-**split_ratio : float, optional (default=0.9)**
-  Ratio of training data used for training. The remainder will be used for validation.
-
-**random_state : integer, optional (default=None)**
-  Seed for the random number generator.
+**scoring : callable or None, optional (default=sklearn.metrics.accuracy_score)**
+  Scoring method for testing model performance during fitting.
 
 **vectors : string, optional (default=None)**
   Which pretrained TorchText vectors to use (see [torchtext.vocab.pretrained_aliases](https://torchtext.readthedocs.io/en/latest/vocab.html#pretrained-aliases) for options).
 
+**split_ratio : float, optional (default=0.9)**
+  Ratio of training data used for training. The remainder will be used for validation.
+
 **preprocessor : callable or None, optional (default=None)**
   Override default string preprocessing.
 
-**scoring : callable or None, optional (default=sklearn.metrics.accuracy_score)**
-  Scoring method for testing model performance during fitting.
+**class_weight : dict, "balanced" or None, optional (default=None)**
+  Weights associated with each class (see class_weight parameter in existing scikit-learn classifiers).
+
+**random_state : integer, optional (default=None)**
+  Seed for the random number generator.
 
 **verbose : integer, optional (default=0)**
   Controls the verbosity when fitting.
