@@ -64,8 +64,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         preds, targets = [], []
 
         for batch in data_iter:
-            feature, target = batch.text, batch.label
-            feature, target = feature.data.t(), target.data.sub(1)
+            feature, target = batch.text.data.t(), batch.label.data.sub(1)
 
             if self.cuda and torch.cuda.is_available():
                 feature, target = feature.cuda(), target.cuda()
@@ -110,6 +109,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
 
         optimizer = torch.optim.Adam(self.__model.parameters(), lr=self.lr,
                                      weight_decay=self.max_norm)
+        best_model = self.__model
         steps, best_acc, last_step = 0, 0, 0
         active = True
 
@@ -117,8 +117,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
 
         for epoch in range(self.epochs):
             for batch in train_iter:
-                feature, target = batch.text, batch.label
-                feature, target = feature.data.t(), target.data.sub(1)
+                feature, target = batch.text.data.t(), batch.label.data.sub(1)
 
                 if self.cuda and torch.cuda.is_available():
                     feature, target = feature.cuda(), target.cuda()
@@ -262,10 +261,10 @@ class _CNNText(nn.Module):
                  kernel_sizes, dropout, static, activation_func, vectors=None):
         super(_CNNText, self).__init__()
 
-        self.__embed = nn.Embedding(embed_num, embed_dim)
-
-        if vectors is not None:
-            self.__embed = self.__embed.from_pretrained(vectors)
+        if vectors is None:
+            self.__embed = nn.Embedding(embed_num, embed_dim)
+        else:
+            self.__embed = nn.Embedding.from_pretrained(vectors)
 
         Ks = kernel_sizes
         module_list = [nn.Conv2d(1, kernel_num, (K, embed_dim)) for K in Ks]
