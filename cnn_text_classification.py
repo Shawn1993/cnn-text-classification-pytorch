@@ -265,6 +265,7 @@ class _CNNText(nn.Module):
             self.__embed = nn.Embedding(embed_num, embed_dim)
         else:
             self.__embed = nn.Embedding.from_pretrained(vectors)
+            embed_dim = self.__embed.embedding_dim
 
         Ks = kernel_sizes
         module_list = [nn.Conv2d(1, kernel_num, (K, embed_dim)) for K in Ks]

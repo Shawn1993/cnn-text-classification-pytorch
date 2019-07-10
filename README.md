@@ -47,7 +47,7 @@ Fork of Shawn Ng's [CNNs for Sentence Classification in PyTorch](https://github.
   L2 constraint.
 
 **embed_dim : integer, optional (default=128)**
-  The number of embedding dimensions.
+  The number of embedding dimensions. Ignored if vectors is not None.
 
 **kernel_num : integer, optional (default=100)**
   The number of each size of kernel.
