@@ -11,10 +11,8 @@ Fork of Shawn Ng's [CNNs for Sentence Classification in PyTorch](https://github.
 ## Known Issues
 * The predict method is probably not as efficient as it could be.
 * Doesn't play well with GridSearchCV if num_jobs isn't 1 (unless not using CUDA).
-* Only supports pre-trained word vectors from TorchText.
+* Only supports pre-trained word vectors from TorchText (or no pre-trained vectors).
 * The random_state parameter probably only works with integers or None.
-* Training samples shorter than the maximum kernel size are ignored.
-* Test samples shorter than the maximum kernel size are classified as the most common class found during training.
 * Features my idiosyncratic coding style.
 
 ## To Do
@@ -52,8 +50,8 @@ Fork of Shawn Ng's [CNNs for Sentence Classification in PyTorch](https://github.
 **kernel_num : integer, optional (default=100)**
   The number of each size of kernel.
 
-**kernel_sizes : string, optional (default='3,4,5')**
-  Comma-separated kernel sizes to use for convolution.
+**kernel_sizes : iterable of integers, optional (default=(3, 4, 5))**
+  Kernel sizes to use for convolution.
 
 **static : boolean, optional (default=False)**
   If true, fix the embedding.

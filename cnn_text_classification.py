@@ -14,7 +14,7 @@ from torchtext.data import Dataset, Example, Field, Iterator, Pipeline
 class CNNClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, lr=0.001, epochs=256, batch_size=64, test_interval=100,
                  early_stop=1000, save_best=True, dropout=0.5, max_norm=0.0,
-                 embed_dim=128, kernel_num=100, kernel_sizes="3,4,5",
+                 embed_dim=128, kernel_num=100, kernel_sizes=(3, 4, 5),
                  static=False, device=-1, cuda=True, activation_func="relu",
                  scoring=make_scorer(accuracy_score), vectors=None,
                  split_ratio=0.9, preprocessor=None, class_weight=None,
@@ -29,7 +29,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         self.max_norm = max_norm
         self.embed_dim = embed_dim
         self.kernel_num = kernel_num
-        self.kernel_sizes = kernel_sizes
+        self.kernel_sizes = sorted(kernel_sizes)
         self.static = static
         self.device = device
         self.cuda = cuda
@@ -97,10 +97,10 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         train_iter, dev_iter = self.__preprocess(X, y, sample_weight)
         embed_num = len(self.__text_field.vocab)
         class_num = len(self.__label_field.vocab) - 1
-        kernel_sizes = [int(k) for k in self.kernel_sizes.split(",")]
         self.__model = _CNNText(embed_num, self.embed_dim, class_num,
-                                self.kernel_num, kernel_sizes, self.dropout,
-                                self.static, self.activation_func,
+                                self.kernel_num, self.kernel_sizes,
+                                self.dropout, self.static,
+                                self.activation_func,
                                 vectors=self.__text_field.vocab.vectors)
 
         if self.cuda and torch.cuda.is_available():
@@ -154,18 +154,11 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
 
     def predict(self, X):
         y_pred = []
-        max_krnl_sz = int(self.kernel_sizes[self.kernel_sizes.rfind(",") + 1:])
 
         for text in X:
             assert isinstance(text, str)
 
-            text = self.__text_field.preprocess(text)
-
-            if len(text) < max_krnl_sz:
-                most_common = self.__label_field.vocab.freqs.most_common(1)[0]
-
-                y_pred.append(most_common[0])
-                continue
+            text = self.__pad(self.__text_field.preprocess(text), True)
 
             self.__model.eval()
 
@@ -179,21 +172,25 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         torch.cuda.empty_cache()
         return y_pred
 
+    def __pad(self, x, preprocessed=False):
+        tokens = x if preprocessed else self.__text_field.preprocess(x)
+        difference = self.kernel_sizes[-1] - len(tokens)
+
+        if difference > 0:
+            padding = [self.__text_field.pad_token] * difference
+            return x + padding if preprocessed else " ".join([x] + padding)
+
+        return x
+
     def __preprocess(self, X, y, sample_weight):
         self.__text_field = Field(lower=True)
         self.__label_field = Field(sequential=False)
         self.__text_field.preprocessing = Pipeline(self.__preprocess_text)
-        max_krnl_sz = int(self.kernel_sizes[self.kernel_sizes.rfind(",") + 1:])
         X, y = list(X), list(y)
         sample_weight = None if sample_weight is None else list(sample_weight)
 
-        for i in range(len(X) - 1, -1, -1):
-            if len(self.__text_field.preprocess(X[i])) < max_krnl_sz:
-                del X[i]
-                del y[i]
-
-                if sample_weight is not None:
-                    del sample_weight[i]
+        for i in range(len(X)):
+            X[i] = self.__pad(X[i])
 
         fields = [("text", self.__text_field), ("label", self.__label_field)]
         exmpl = [Example.fromlist([X[i], y[i]], fields) for i in range(len(X))]
