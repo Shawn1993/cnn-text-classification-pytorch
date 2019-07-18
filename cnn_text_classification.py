@@ -153,25 +153,32 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         torch.cuda.empty_cache()
         return self
 
-    def predict(self, X):
-        y_pred = []
+    def __predict(self, X):
+        y_output = []
+
+        self.__model.eval()
 
         for text in X:
             assert isinstance(text, str)
 
             text = self.__pad(self.__text_field.preprocess(text), True)
-
-            self.__model.eval()
-
             text = [[self.__text_field.vocab.stoi[x] for x in text]]
             x = Variable(torch.tensor(text))
             x = x.cuda() if self.cuda and torch.cuda.is_available() else x
-            _, predicted = torch.max(self.__model(x), 1)
 
-            y_pred.append(self.__label_field.vocab.itos[predicted.data[0] + 1])
+            y_output.append(self.__model(x))
 
         torch.cuda.empty_cache()
-        return y_pred
+        return y_output
+
+    def predict(self, X):
+        y_pred = [torch.argmax(yi, 1) for yi in self.__predict(X)]
+        return [self.__label_field.vocab.itos[yi.data[0] + 1] for yi in y_pred]
+
+    def predict_proba(self, X):
+        softmax = nn.Softmax(dim=1)
+        y_prob = [softmax(yi) for yi in self.__predict(X)]
+        return [[float(yij) for yij in yi[0]] for yi in y_prob]
 
     def __pad(self, x, preprocessed=False):
         tokens = x if preprocessed else self.__text_field.preprocess(x)

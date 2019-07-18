@@ -9,7 +9,8 @@ Fork of Shawn Ng's [CNNs for Sentence Classification in PyTorch](https://github.
 * scikit-learn
 
 ## Known Issues
-* The predict method is probably not as efficient as it could be.
+* The predict and predict_proba methods are probably not as efficient as they could be.
+* The class probabilities returned by the predict_proba method are probably questionable.
 * Doesn't play well with GridSearchCV if num_jobs isn't 1 (unless not using CUDA).
 * Only supports pre-trained word vectors from TorchText (or no pre-trained vectors).
 * The random_state parameter probably only works with integers or None.
@@ -110,4 +111,14 @@ Parameters: X: list of strings
 
 Returns:    y: list of strings
                The predicted classes.
+```
+
+**predict_proba(X)**
+Predict class probabilities for X.
+```
+Parameters: X: list of strings
+               The input samples.
+
+Returns:    y: list of lists for floats
+               The predicted class probabilities.
 ```
