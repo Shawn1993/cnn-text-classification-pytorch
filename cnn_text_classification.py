@@ -145,6 +145,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
                 break
 
         self.__model = best_model if self.save_best else self.__model
+        self.classes_ = self.__label_field.vocab.itos[1:]
 
         if self.verbose > 0:
             self.__print_elapsed_time(time() - start)
@@ -186,7 +187,6 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         self.__text_field = Field(lower=True)
         self.__label_field = Field(sequential=False)
         self.__text_field.preprocessing = Pipeline(self.__preprocess_text)
-        X, y = list(X), list(y)
         sample_weight = None if sample_weight is None else list(sample_weight)
 
         for i in range(len(X)):
