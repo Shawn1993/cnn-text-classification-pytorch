@@ -29,7 +29,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         self.max_norm = max_norm
         self.embed_dim = embed_dim
         self.kernel_num = kernel_num
-        self.kernel_sizes = sorted(kernel_sizes)
+        self.kernel_sizes = kernel_sizes
         self.static = static
         self.device = device
         self.cuda = cuda
@@ -155,13 +155,15 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
 
     def __predict(self, X):
         y_output = []
+        max_kernel_size = max(self.kernel_sizes)
 
         self.__model.eval()
 
         for text in X:
             assert isinstance(text, str)
 
-            text = self.__pad(self.__text_field.preprocess(text), True)
+            text = self.__text_field.preprocess(text)
+            text = self.__pad(text, max_kernel_size, True)
             text = [[self.__text_field.vocab.stoi[x] for x in text]]
             x = Variable(torch.tensor(text))
             x = x.cuda() if self.cuda and torch.cuda.is_available() else x
@@ -180,9 +182,9 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         y_prob = [softmax(yi) for yi in self.__predict(X)]
         return [[float(yij) for yij in yi[0]] for yi in y_prob]
 
-    def __pad(self, x, preprocessed=False):
+    def __pad(self, x, max_kernel_size, preprocessed=False):
         tokens = x if preprocessed else self.__text_field.preprocess(x)
-        difference = self.kernel_sizes[-1] - len(tokens)
+        difference = max_kernel_size - len(tokens)
 
         if difference > 0:
             padding = [self.__text_field.pad_token] * difference
@@ -194,10 +196,11 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         self.__text_field = Field(lower=True)
         self.__label_field = Field(sequential=False)
         self.__text_field.preprocessing = Pipeline(self.__preprocess_text)
+        max_kernel_size = max(self.kernel_sizes)
         sample_weight = None if sample_weight is None else list(sample_weight)
 
         for i in range(len(X)):
-            X[i] = self.__pad(X[i])
+            X[i] = self.__pad(X[i], max_kernel_size)
 
         fields = [("text", self.__text_field), ("label", self.__label_field)]
         exmpl = [Example.fromlist([X[i], y[i]], fields) for i in range(len(X))]
