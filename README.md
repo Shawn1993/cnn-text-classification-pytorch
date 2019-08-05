@@ -9,6 +9,7 @@ Fork of Shawn Ng's [CNNs for Sentence Classification in PyTorch](https://github.
 * scikit-learn
 
 ## Known Issues
+* Oversampling is applied to the whole training dataset, so many training samples likely end up in both training and dev sets.
 * The predict and predict_proba methods are probably not as efficient as they could be.
 * The class probabilities returned by the predict_proba method are probably questionable.
 * Doesn't play well with GridSearchCV if num_jobs isn't 1 (unless not using CUDA).
@@ -63,11 +64,14 @@ Fork of Shawn Ng's [CNNs for Sentence Classification in PyTorch](https://github.
 **cuda : boolean, optional (default=True)**
   If true, use the GPU if available.
 
-** activation_func : string, optional (default='relu')**
+**activation_func : string, optional (default='relu')**
   Activation function. If 'relu' or 'tanh', uses rectified linear unit or hyperbolic tangent, respectively. Otherwise, uses no activation function (f(x) = x).
 
-**scoring : callable or None, optional (default=sklearn.metrics.accuracy_score)**
+**scoring : callable or "roc_auc", optional (default=sklearn.metrics.make_scorer(sklearn.metrics.accuracy_score))**
   Scoring method for testing model performance during fitting.
+
+**pos_label : string, optional (default=None)**
+  Positive class label for roc_auc scoring. Ignored if using a different scoring method.
 
 **vectors : string, optional (default=None)**
   Which pretrained TorchText vectors to use (see [torchtext.vocab.pretrained_aliases](https://torchtext.readthedocs.io/en/latest/vocab.html#pretrained-aliases) for options).

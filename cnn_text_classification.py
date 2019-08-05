@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from collections import Counter
 from copy import deepcopy
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.metrics import accuracy_score, make_scorer
+from sklearn.metrics import accuracy_score, make_scorer, roc_auc_score
 from time import time
 from torch.autograd import Variable
 from torchtext.data import Dataset, Example, Field, Iterator, Pipeline
@@ -16,9 +16,9 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
                  early_stop=1000, save_best=True, dropout=0.5, max_norm=0.0,
                  embed_dim=128, kernel_num=100, kernel_sizes=(3, 4, 5),
                  static=False, device=-1, cuda=True, activation_func="relu",
-                 scoring=make_scorer(accuracy_score), vectors=None,
-                 split_ratio=0.9, preprocessor=None, class_weight=None,
-                 random_state=None, verbose=0):
+                 scoring=make_scorer(accuracy_score), pos_label=None,
+                 vectors=None, split_ratio=0.9, preprocessor=None,
+                 class_weight=None, random_state=None, verbose=0):
         self.lr = lr
         self.epochs = epochs
         self.batch_size = batch_size
@@ -35,6 +35,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         self.cuda = cuda
         self.activation_func = activation_func
         self.scoring = scoring
+        self.pos_label = pos_label
         self.vectors = vectors
         self.split_ratio = split_ratio
         self.preprocessor = preprocessor
@@ -62,6 +63,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         self.__model.eval()
 
         preds, targets = [], []
+        softmax = nn.Softmax(dim=1) if self.scoring == "roc_auc" else None
 
         for batch in data_iter:
             feature, target = batch.text.data.t(), batch.label.data.sub(1)
@@ -73,11 +75,21 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
 
             F.cross_entropy(logit, target, reduction="sum")
 
-            preds += torch.max(logit, 1)[1].view(target.size()).data.tolist()
+            if self.scoring == "roc_auc":
+                pred = [[float(p) for p in dist] for dist in softmax(logit)]
+            else:
+                pred = torch.max(logit, 1)[1].view(target.size()).data.tolist()
+           
+            preds += pred
             targets += target.data.tolist()
 
-        preds = [self.__label_field.vocab.itos[pred + 1] for pred in preds]
         targets = [self.__label_field.vocab.itos[targ + 1] for targ in targets]
+
+        if self.scoring == "roc_auc":
+            pos_index = self.__label_field.vocab.stoi[self.pos_label] - 1
+            return roc_auc_score(targets, [pred[pos_index] for pred in preds])
+
+        preds = [self.__label_field.vocab.itos[pred + 1] for pred in preds]
         return self.scoring(_Eval(preds), None, targets)
 
     def fit(self, X, y, sample_weight=None):
