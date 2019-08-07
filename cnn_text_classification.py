@@ -6,6 +6,7 @@ from collections import Counter
 from copy import deepcopy
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.metrics import accuracy_score, make_scorer, roc_auc_score
+from sklearn.model_selection import train_test_split as split
 from time import time
 from torch.autograd import Variable
 from torchtext.data import Dataset, Example, Field, Iterator, Pipeline
@@ -17,7 +18,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
                  embed_dim=128, kernel_num=100, kernel_sizes=(3, 4, 5),
                  static=False, device=-1, cuda=True, activation_func="relu",
                  scoring=make_scorer(accuracy_score), pos_label=None,
-                 vectors=None, split_ratio=0.9, preprocessor=None,
+                 vectors=None, split_ratio=0.8, preprocessor=None,
                  class_weight=None, random_state=None, verbose=0):
         self.lr = lr
         self.epochs = epochs
@@ -79,7 +80,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
                 pred = [[float(p) for p in dist] for dist in softmax(logit)]
             else:
                 pred = torch.max(logit, 1)[1].view(target.size()).data.tolist()
-           
+
             preds += pred
             targets += target.data.tolist()
 
@@ -214,31 +215,37 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         for i in range(len(X)):
             X[i] = self.__pad(X[i], max_kernel_size)
 
+        X_t, X_d, y_t, y_d = split(X, y, random_state=self.random_state,
+                                   shuffle=True, stratify=y,
+                                   train_size=self.split_ratio)
         fields = [("text", self.__text_field), ("label", self.__label_field)]
-        exmpl = [Example.fromlist([X[i], y[i]], fields) for i in range(len(X))]
-        weights = [1 for yi in y] if sample_weight is None else sample_weight
+        examples = [[X_t[i], y_t[i]] for i in range(len(X_t))]
+        examples = [Example.fromlist(example, fields) for example in examples]
+        weights = [1 for yi in y_t] if sample_weight is None else sample_weight
 
         if self.class_weight is not None:
             cw = self.class_weight
 
             if isinstance(cw, str) and cw == "balanced":
-                counter = Counter(y)
-                cw = [len(y) / (len(counter) * counter[yi]) for yi in y]
-                weights = [weights[i] * cw[i] for i in range(len(y))]
+                counter = Counter(y_t)
+                cw = [len(y_t) / (len(counter) * counter[yi]) for yi in y_t]
+                weights = [weights[i] * cw[i] for i in range(len(y_t))]
             elif isinstance(cw, dict):
-                cw = [cw[yi] for yi in y]
-                weights = [weights[i] * cw[i] for i in range(len(y))]
+                cw = [cw[yi] for yi in y_t]
+                weights = [weights[i] * cw[i] for i in range(len(y_t))]
 
         min_weight = min(weights)
         weights = [round(w / min_weight) for w in weights]
 
-        for i in range(len(X)):
+        for i in range(len(X_t)):
             if weights[i] > 1:
-                Xi = [X[i] for j in range(weights[i] - 1)]
-                exmpl += [Example.fromlist([x, y[i]], fields) for x in Xi]
+                Xi = [X_t[i] for j in range(weights[i] - 1)]
+                examples += [Example.fromlist([x, y_t[i]], fields) for x in Xi]
 
-        train_data, dev_data = Dataset(exmpl, fields).split(self.split_ratio,
-                                                            self.random_state,)
+        train_data = Dataset(examples, fields)
+        dev_data = [[X_d[i], y_d[i]] for i in range(len(X_d))]
+        dev_data = [Example.fromlist(example, fields) for example in dev_data]
+        dev_data = Dataset(dev_data, fields)
 
         self.__text_field.build_vocab(train_data, dev_data,
                                       vectors=self.vectors)
@@ -305,6 +312,7 @@ class _CNNText(nn.Module):
         x = [self.__f(cnv(x.unsqueeze(1))).squeeze(3) for cnv in self.__convs1]
         x = [F.max_pool1d(i, i.size(2)).squeeze(2) for i in x]
         return self.__fc1(self.__dropout(torch.cat(x, 1)))
+
 
 class _Eval():
     def __init__(self, preds):

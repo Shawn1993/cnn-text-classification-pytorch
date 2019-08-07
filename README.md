@@ -9,7 +9,6 @@ Fork of Shawn Ng's [CNNs for Sentence Classification in PyTorch](https://github.
 * scikit-learn
 
 ## Known Issues
-* Oversampling is applied to the whole training dataset, so many training samples likely end up in both training and dev sets.
 * The predict and predict_proba methods are probably not as efficient as they could be.
 * The class probabilities returned by the predict_proba method are probably questionable.
 * Doesn't play well with GridSearchCV if num_jobs isn't 1 (unless not using CUDA).
