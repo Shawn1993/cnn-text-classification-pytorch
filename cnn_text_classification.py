@@ -2,11 +2,11 @@ import re
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from collections import Counter
 from copy import deepcopy
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.metrics import accuracy_score, make_scorer, roc_auc_score
 from sklearn.model_selection import train_test_split as split
+from sklearn.utils.class_weight import compute_sample_weight
 from time import time
 from torch.autograd import Variable
 from torchtext.data import Dataset, Example, Field, Iterator, Pipeline
@@ -215,32 +215,20 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         for i in range(len(X)):
             X[i] = self.__pad(X[i], max_kernel_size)
 
-        X_t, X_d, y_t, y_d = split(X, y, random_state=self.random_state,
-                                   shuffle=True, stratify=y,
-                                   train_size=self.split_ratio)
+        sw = [1 for yi in y] if sample_weight is None else sample_weight
+        X_t, X_d, y_t, y_d, w_t, _ = split(X, y, sw, shuffle=True, stratify=y,
+                                           random_state=self.random_state,
+                                           train_size=self.split_ratio)
         fields = [("text", self.__text_field), ("label", self.__label_field)]
         examples = [[X_t[i], y_t[i]] for i in range(len(X_t))]
         examples = [Example.fromlist(example, fields) for example in examples]
-        weights = [1 for yi in y_t] if sample_weight is None else sample_weight
-
-        if self.class_weight is not None:
-            cw = self.class_weight
-
-            if isinstance(cw, str) and cw == "balanced":
-                counter = Counter(y_t)
-                cw = [len(y_t) / (len(counter) * counter[yi]) for yi in y_t]
-                weights = [weights[i] * cw[i] for i in range(len(y_t))]
-            elif isinstance(cw, dict):
-                cw = [cw[yi] for yi in y_t]
-                weights = [weights[i] * cw[i] for i in range(len(y_t))]
-
+        weights = compute_sample_weight(self.class_weight, y_t)
+        weights = [weights[i] * w_t[i] for i in range(len(y_t))]
         min_weight = min(weights)
-        weights = [round(w / min_weight) for w in weights]
 
         for i in range(len(X_t)):
-            if weights[i] > 1:
-                Xi = [X_t[i] for j in range(weights[i] - 1)]
-                examples += [Example.fromlist([x, y_t[i]], fields) for x in Xi]
+            Xi = [X_t[i] for j in range(round(weights[i] / min_weight) - 1)]
+            examples += [Example.fromlist([x, y_t[i]], fields) for x in Xi]
 
         train_data = Dataset(examples, fields)
         dev_data = [[X_d[i], y_d[i]] for i in range(len(X_d))]
