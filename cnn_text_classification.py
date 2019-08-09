@@ -225,9 +225,10 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         weights = compute_sample_weight(self.class_weight, y_t)
         weights = [weights[i] * w_t[i] for i in range(len(y_t))]
         min_weight = min(weights)
+        weights = [int(round(weight / min_weight)) for weight in weights]
 
         for i in range(len(X_t)):
-            Xi = [X_t[i] for j in range(round(weights[i] / min_weight) - 1)]
+            Xi = [X_t[i] for j in range(weights[i] - 1)]
             examples += [Example.fromlist([x, y_t[i]], fields) for x in Xi]
 
         train_data = Dataset(examples, fields)
