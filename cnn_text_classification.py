@@ -2,7 +2,8 @@ import re
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from copy import deepcopy
+from collections import Counter
+from os import remove
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.metrics import accuracy_score, make_scorer, roc_auc_score
 from sklearn.model_selection import train_test_split as split
@@ -122,9 +123,9 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
 
         optimizer = torch.optim.Adam(self.__model.parameters(), lr=self.lr,
                                      weight_decay=self.max_norm)
-        best_model = self.__model
         steps, best_acc, last_step = 0, 0, 0
         active = True
+        filename = "./{}.model".format(time())
 
         self.__model.train()
 
@@ -149,7 +150,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
                         last_step = steps
 
                         if self.save_best:
-                            best_model = deepcopy(self.__model)
+                            torch.save(self.__model.state_dict(), filename)
                     elif steps - last_step >= self.early_stop:
                         active = False
                         break
@@ -157,7 +158,10 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
             if not active:
                 break
 
-        self.__model = best_model if self.save_best else self.__model
+        if self.save_best:
+            self.__model.load_state_dict(torch.load(filename))
+            remove(filename)
+
         self.classes_ = self.__label_field.vocab.itos[1:]
 
         if self.verbose > 0:
@@ -216,7 +220,8 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
             X[i] = self.__pad(X[i], max_kernel_size)
 
         sw = [1 for yi in y] if sample_weight is None else sample_weight
-        X_t, X_d, y_t, y_d, w_t, _ = split(X, y, sw, shuffle=True, stratify=y,
+        s = y if Counter(y).most_common()[-1][1] > 1 else None
+        X_t, X_d, y_t, y_d, w_t, _ = split(X, y, sw, shuffle=True, stratify=s,
                                            random_state=self.random_state,
                                            train_size=self.split_ratio)
         fields = [("text", self.__text_field), ("label", self.__label_field)]
@@ -298,10 +303,10 @@ class _CNNText(nn.Module):
 
     def forward(self, x):
         x = Variable(self.__embed(x)) if self.__static else self.__embed(x)
-        x = [self.__f(cnv(x.unsqueeze(1))).squeeze(3) for cnv in self.__convs1]
+        x = x.unsqueeze(1)
+        x = [self.__f(conv(x), inplace=True).squeeze(3) for conv in self.__convs1]
         x = [F.max_pool1d(i, i.size(2)).squeeze(2) for i in x]
         return self.__fc1(self.__dropout(torch.cat(x, 1)))
-
 
 class _Eval():
     def __init__(self, preds):
