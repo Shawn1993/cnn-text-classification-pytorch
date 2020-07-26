@@ -33,7 +33,7 @@ class TarDataset(data.Dataset):
 class MR(TarDataset):
 
     url = 'https://www.cs.cornell.edu/people/pabo/movie-review-data/rt-polaritydata.tar.gz'
-    filename = 'rt-polaritydata.tar'
+    filename = 'rt-polaritydata.tar.gz'
     dirname = 'rt-polaritydata'
 
     @staticmethod

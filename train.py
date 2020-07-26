@@ -18,15 +18,12 @@ def train(train_iter, dev_iter, model, args):
     for epoch in range(1, args.epochs+1):
         for batch in train_iter:
             feature, target = batch.text, batch.label
-            feature.data.t_(), target.data.sub_(1)  # batch first, index align
+            feature.t_(), target.sub_(1)  # batch first, index align
             if args.cuda:
                 feature, target = feature.cuda(), target.cuda()
 
             optimizer.zero_grad()
             logit = model(feature)
-
-            #print('logit vector', logit.size())
-            #print('target vector', target.size())
             loss = F.cross_entropy(logit, target)
             loss.backward()
             optimizer.step()
@@ -37,9 +34,9 @@ def train(train_iter, dev_iter, model, args):
                 accuracy = 100.0 * corrects/batch.batch_size
                 sys.stdout.write(
                     '\rBatch[{}] - loss: {:.6f}  acc: {:.4f}%({}/{})'.format(steps, 
-                                                                             loss.data[0], 
-                                                                             accuracy,
-                                                                             corrects,
+                                                                             loss.item(), 
+                                                                             accuracy.item(),
+                                                                             corrects.item(),
                                                                              batch.batch_size))
             if steps % args.test_interval == 0:
                 dev_acc = eval(dev_iter, model, args)
@@ -60,14 +57,14 @@ def eval(data_iter, model, args):
     corrects, avg_loss = 0, 0
     for batch in data_iter:
         feature, target = batch.text, batch.label
-        feature.data.t_(), target.data.sub_(1)  # batch first, index align
+        feature.t_(), target.sub_(1)  # batch first, index align
         if args.cuda:
             feature, target = feature.cuda(), target.cuda()
 
         logit = model(feature)
         loss = F.cross_entropy(logit, target, size_average=False)
 
-        avg_loss += loss.data[0]
+        avg_loss += loss.item()
         corrects += (torch.max(logit, 1)
                      [1].view(target.size()).data == target.data).sum()
 
@@ -94,8 +91,7 @@ def predict(text, model, text_field, label_feild, cuda_flag):
     print(x)
     output = model(x)
     _, predicted = torch.max(output, 1)
-    #return label_feild.vocab.itos[predicted.data[0][0]+1]
-    return label_feild.vocab.itos[predicted.data[0]+1]
+    return label_feild.vocab.itos[predicted.item()+1]
 
 
 def save(model, save_dir, save_prefix, steps):
