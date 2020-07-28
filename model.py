@@ -25,11 +25,6 @@ class CNN_Text(nn.Module):
         if self.args.static:
             self.embed.weight.requires_grad = False
 
-    def conv_and_pool(self, x, conv):
-        x = F.relu(conv(x)).squeeze(3)  # (N, Co, W)
-        x = F.max_pool1d(x, x.size(2)).squeeze(2)
-        return x
-
     def forward(self, x):
         x = self.embed(x)  # (N, W, D)
     
