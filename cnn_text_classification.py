@@ -9,7 +9,6 @@ from sklearn.metrics import accuracy_score, make_scorer, roc_auc_score
 from sklearn.model_selection import train_test_split as split
 from sklearn.utils.class_weight import compute_sample_weight
 from time import time
-from torch.autograd import Variable
 from torchtext.data import Dataset, Example, Field, Iterator, Pipeline
 
 
@@ -68,7 +67,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         softmax = nn.Softmax(dim=1) if self.scoring == "roc_auc" else None
 
         for batch in data_iter:
-            feature, target = batch.text.data.t(), batch.label.data.sub(1)
+            feature, target = batch.text.t_(), batch.label.sub_(1)
 
             if self.cuda and torch.cuda.is_available():
                 feature, target = feature.cuda(), target.cuda()
@@ -80,10 +79,10 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
             if self.scoring == "roc_auc":
                 pred = [[float(p) for p in dist] for dist in softmax(logit)]
             else:
-                pred = torch.max(logit, 1)[1].view(target.size()).data.tolist()
+                pred = torch.max(logit, 1)[1].view(target.size()).tolist()
 
             preds += pred
-            targets += target.data.tolist()
+            targets += target.tolist()
 
         targets = [self.__label_field.vocab.itos[targ + 1] for targ in targets]
 
@@ -131,7 +130,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
 
         for epoch in range(self.epochs):
             for batch in train_iter:
-                feature, target = batch.text.data.t(), batch.label.data.sub(1)
+                feature, target = batch.text.t_(), batch.label.sub_(1)
 
                 if self.cuda and torch.cuda.is_available():
                     feature, target = feature.cuda(), target.cuda()
@@ -167,7 +166,6 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         if self.verbose > 0:
             self.__print_elapsed_time(time() - start)
 
-        torch.cuda.empty_cache()
         return self
 
     def __predict(self, X):
@@ -182,17 +180,16 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
             text = self.__text_field.preprocess(text)
             text = self.__pad(text, max_kernel_size, True)
             text = [[self.__text_field.vocab.stoi[x] for x in text]]
-            x = Variable(torch.tensor(text))
+            x = torch.tensor(text)
             x = x.cuda() if self.cuda and torch.cuda.is_available() else x
 
             y_output.append(self.__model(x))
 
-        torch.cuda.empty_cache()
         return y_output
 
     def predict(self, X):
         y_pred = [torch.argmax(yi, 1) for yi in self.__predict(X)]
-        return [self.__label_field.vocab.itos[yi.data[0] + 1] for yi in y_pred]
+        return [self.__label_field.vocab.itos[yi.item() + 1] for yi in y_pred]
 
     def predict_proba(self, X):
         softmax = nn.Softmax(dim=1)
@@ -253,7 +250,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         if self.preprocessor is None:
             return self.__clean_str(text)
 
-        return self.__clean_str(self.preprocessor(text))
+        return self.preprocessor(text)
 
     def __print_elapsed_time(self, seconds):
         sc = round(seconds)
@@ -289,10 +286,10 @@ class _CNNText(nn.Module):
 
         Ks = kernel_sizes
         module_list = [nn.Conv2d(1, kernel_num, (K, embed_dim)) for K in Ks]
-        self.__convs1 = nn.ModuleList(module_list)
+        self.__convs = nn.ModuleList(module_list)
         self.__dropout = nn.Dropout(dropout)
-        self.__fc1 = nn.Linear(len(Ks) * kernel_num, class_num)
-        self.__static = static
+        self.__fc = nn.Linear(len(Ks) * kernel_num, class_num)
+        self.__embed.weight.requires_grad = not static
 
         if activation_func == "relu":
             self.__f = F.relu
@@ -302,11 +299,11 @@ class _CNNText(nn.Module):
             self.__f = lambda x: x
 
     def forward(self, x):
-        x = Variable(self.__embed(x)) if self.__static else self.__embed(x)
-        x = x.unsqueeze(1)
-        x = [self.__f(conv(x), inplace=True).squeeze(3) for conv in self.__convs1]
+        x = self.__embed(x).unsqueeze(1)
+        x = [self.__f(cnv(x), inplace=True).squeeze(3) for cnv in self.__convs]
         x = [F.max_pool1d(i, i.size(2)).squeeze(2) for i in x]
-        return self.__fc1(self.__dropout(torch.cat(x, 1)))
+        return self.__fc(self.__dropout(torch.cat(x, 1)))
+
 
 class _Eval():
     def __init__(self, preds):
