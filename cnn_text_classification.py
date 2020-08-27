@@ -4,12 +4,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 from collections import Counter
 from os import remove
+from os.path import exists
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.metrics import accuracy_score, make_scorer, roc_auc_score
 from sklearn.model_selection import train_test_split as split
 from sklearn.utils.class_weight import compute_sample_weight
 from time import time
-from torchtext.data import Dataset, Example, Field, Iterator, Pipeline
+from torchtext.data import Dataset, Example, Field, Iterator
 
 
 class CNNClassifier(BaseEstimator, ClassifierMixin):
@@ -43,8 +44,9 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         self.class_weight = class_weight
         self.random_state = random_state
         self.verbose = verbose
+        self.__max_kernel_size = max(self.kernel_sizes)
 
-    def __clean_str(self, string):
+    def __default_preprocessor(self, string):
         string = re.sub(r"[^A-Za-z0-9(),!?\'\`]", " ", string)
         string = re.sub(r"\'s", " \'s", string)
         string = re.sub(r"\'ve", " \'ve", string)
@@ -107,7 +109,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
             print("\n".join([": ".join([k, str(v)]) for k, v in params]))
 
         start = time() if self.verbose > 0 else None
-        train_iter, dev_iter = self.__preprocess(X, y, sample_weight)
+        train_iter, dev_iter = self.__prepare_train_data(X, y, sample_weight)
         embed_num = len(self.__text_field.vocab)
         class_num = len(self.__label_field.vocab) - 1
         self.__model = _CNNText(embed_num, self.embed_dim, class_num,
@@ -157,7 +159,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
             if not active:
                 break
 
-        if self.save_best:
+        if self.save_best and exists(filename):
             self.__model.load_state_dict(torch.load(filename))
             remove(filename)
 
@@ -169,8 +171,7 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         return self
 
     def __predict(self, X):
-        y_output = []
-        max_kernel_size = max(self.kernel_sizes)
+        texts = []
 
         self.__model.eval()
 
@@ -178,44 +179,25 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
             assert isinstance(text, str)
 
             text = self.__text_field.preprocess(text)
-            text = self.__pad(text, max_kernel_size, True)
-            text = [[self.__text_field.vocab.stoi[x] for x in text]]
-            x = torch.tensor(text)
-            x = x.cuda() if self.cuda and torch.cuda.is_available() else x
+            text = [self.__text_field.vocab.stoi[x] for x in text]
+            texts.append(torch.tensor(text))
 
-            y_output.append(self.__model(x))
-
-        return y_output
+        x = torch.stack(texts, 0)
+        x = x.cuda() if self.cuda and torch.cuda.is_available() else x
+        return self.__model(x)
 
     def predict(self, X):
-        y_pred = [torch.argmax(yi, 1) for yi in self.__predict(X)]
+        y_pred = torch.argmax(self.__predict(X), 1)
         return [self.__label_field.vocab.itos[yi.item() + 1] for yi in y_pred]
 
     def predict_proba(self, X):
-        softmax = nn.Softmax(dim=1)
-        y_prob = [softmax(yi) for yi in self.__predict(X)]
-        return [[float(yij) for yij in yi[0]] for yi in y_prob]
+        return nn.Softmax(dim=1)(self.__predict(X)).tolist()
 
-    def __pad(self, x, max_kernel_size, preprocessed=False):
-        tokens = x if preprocessed else self.__text_field.preprocess(x)
-        difference = max_kernel_size - len(tokens)
-
-        if difference > 0:
-            padding = [self.__text_field.pad_token] * difference
-            return x + padding if preprocessed else " ".join([x] + padding)
-
-        return x
-
-    def __preprocess(self, X, y, sample_weight):
+    def __prepare_train_data(self, X, y, sample_weight):
         self.__text_field = Field(lower=True)
         self.__label_field = Field(sequential=False)
-        self.__text_field.preprocessing = Pipeline(self.__preprocess_text)
-        max_kernel_size = max(self.kernel_sizes)
+        self.__text_field.tokenize = self.__tokenize
         sample_weight = None if sample_weight is None else list(sample_weight)
-
-        for i in range(len(X)):
-            X[i] = self.__pad(X[i], max_kernel_size)
-
         sw = [1 for yi in y] if sample_weight is None else sample_weight
         s = y if Counter(y).most_common()[-1][1] > 1 else None
         X_t, X_d, y_t, y_d, w_t, _ = split(X, y, sw, shuffle=True, stratify=s,
@@ -246,12 +228,6 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
         return Iterator.splits((train_data, dev_data), batch_sizes=batch_sizes,
                                sort_key=lambda ex: len(ex.text), repeat=False)
 
-    def __preprocess_text(self, text):
-        if self.preprocessor is None:
-            return self.__clean_str(text)
-
-        return self.preprocessor(text)
-
     def __print_elapsed_time(self, seconds):
         sc = round(seconds)
         mn = int(sc / 60)
@@ -272,6 +248,16 @@ class CNNClassifier(BaseEstimator, ClassifierMixin):
 
         print("Completed training in {}.".format(times))
 
+    def __tokenize(self, text):
+        if self.preprocessor is None:
+            text = self.__default_preprocessor(text)
+        else:
+            text = self.preprocessor(text)
+
+        tokens = text.split()
+        difference = self.__max_kernel_size - len(tokens)
+        return tokens + [self.__text_field.pad_token] * max(difference, 0)
+
 
 class _CNNText(nn.Module):
     def __init__(self, embed_num, embed_dim, class_num, kernel_num,
@@ -280,8 +266,9 @@ class _CNNText(nn.Module):
 
         if vectors is None:
             self.__embed = nn.Embedding(embed_num, embed_dim)
+            self.__embed.weight.requires_grad = not static
         else:
-            self.__embed = nn.Embedding.from_pretrained(vectors)
+            self.__embed = nn.Embedding.from_pretrained(vectors, freeze=static)
             embed_dim = self.__embed.embedding_dim
 
         Ks = kernel_sizes
@@ -289,7 +276,6 @@ class _CNNText(nn.Module):
         self.__convs = nn.ModuleList(module_list)
         self.__dropout = nn.Dropout(dropout)
         self.__fc = nn.Linear(len(Ks) * kernel_num, class_num)
-        self.__embed.weight.requires_grad = not static
 
         if activation_func == "relu":
             self.__f = F.relu
