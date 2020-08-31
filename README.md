@@ -1,125 +1,127 @@
 ## Introduction
-Fork of Shawn Ng's [CNNs for Sentence Classification in PyTorch](https://github.com/Shawn1993/cnn-text-classification-pytorch), refactored as a scikit-learn classifier.
+This is the implementation of Kim's [Convolutional Neural Networks for Sentence Classification](https://arxiv.org/abs/1408.5882) paper in PyTorch.
 
-## Requirements
+1. Kim's implementation of the model in Theano:
+[https://github.com/yoonkim/CNN_sentence](https://github.com/yoonkim/CNN_sentence)
+2. Denny Britz has an implementation in Tensorflow:
+[https://github.com/dennybritz/cnn-text-classification-tf](https://github.com/dennybritz/cnn-text-classification-tf)
+3. Alexander Rakhlin's implementation in Keras;
+[https://github.com/alexander-rakhlin/CNN-for-Sentence-Classification-in-Keras](https://github.com/alexander-rakhlin/CNN-for-Sentence-Classification-in-Keras)
+
+## Requirement
 * python 3
 * pytorch > 0.1
 * torchtext > 0.1
 * numpy
-* scikit-learn
 
-## Known Issues
-* Doesn't play well with GridSearchCV if num_jobs isn't 1 (unless not using CUDA).
-* Only supports pre-trained word vectors from TorchText (or no pre-trained vectors).
-* The random_state parameter probably only works with integers or None.
-* Features my idiosyncratic coding style.
+## Result
+I just tried two dataset, MR and SST.
 
-## To Do
-* Add support for cross-validation during training.
-* Implement sample weights in eval scoring?
+|Dataset|Class Size|Best Result|Kim's Paper Result|
+|---|---|---|---|
+|MR|2|77.5%(CNN-rand-static)|76.1%(CNN-rand-nostatic)|
+|SST|5|37.2%(CNN-rand-static)|45.0%(CNN-rand-nostatic)|
 
-## Parameters
-**lr : float, optional (default=0.01)**
-  Initial learning rate.
+I haven't adjusted the hyper-parameters for SST seriously.
 
-**epochs : integer, optional (default=256)**
-  Number of training epochs.
-
-**batch_size : integer, optional (default=64)**
-  Training batch size.
-
-**test_interval : integer, optional (default=100)**
-  The number of epochs to wait before testing.
-
-**early_stop : integer, optional (default=1000)**
-  The number of iterations without increased performance to reach before stopping.
-
-**save_best : boolean, optional (default=True)**
-  Keep the model with the best performance found during training.
-
-**dropout : float, optional (default=0.5)**
-  Dropout probability.
-
-**max_norm : float, optional (default=0.0)**
-  L2 constraint.
-
-**embed_dim : integer, optional (default=128)**
-  The number of embedding dimensions. Ignored if vectors is not None.
-
-**kernel_num : integer, optional (default=100)**
-  The number of each size of kernel.
-
-**kernel_sizes : iterable of integers, optional (default=(3, 4, 5))**
-  Kernel sizes to use for convolution.
-
-**static : boolean, optional (default=False)**
-  If true, fix the embedding.
-
-**device : int, optional (default=-1)**
-  Device to use for iterating data; -1 for CPU (see torch.cuda.set_device()).
-
-**cuda : boolean, optional (default=True)**
-  If true, use the GPU if available.
-
-**activation_func : string, optional (default='relu')**
-  Activation function. If 'relu' or 'tanh', uses rectified linear unit or hyperbolic tangent, respectively. Otherwise, uses no activation function (f(x) = x).
-
-**scoring : callable or "roc_auc", optional (default=sklearn.metrics.make_scorer(sklearn.metrics.accuracy_score))**
-  Scoring method for testing model performance during fitting.
-
-**pos_label : string, optional (default=None)**
-  Positive class label for roc_auc scoring. Ignored if using a different scoring method.
-
-**vectors : string, optional (default=None)**
-  Which pretrained TorchText vectors to use (see [torchtext.vocab.pretrained_aliases](https://torchtext.readthedocs.io/en/latest/vocab.html#pretrained-aliases) for options).
-
-**split_ratio : float, optional (default=0.9)**
-  Ratio of training data used for training. The remainder will be used for validation.
-
-**preprocessor : callable or None, optional (default=None)**
-  Override default string preprocessing.
-
-**class_weight : dict, "balanced" or None, optional (default=None)**
-  Weights associated with each class (see class_weight parameter in existing scikit-learn classifiers).
-
-**random_state : integer, optional (default=None)**
-  Seed for the random number generator.
-
-**verbose : integer, optional (default=0)**
-  Controls the verbosity when fitting.
-
-## Methods
-**fit(X, y, sample_weight=None)**
-Train the CNN classifier from the training set (X, y).
+## Usage
 ```
-Parameters: X: list of strings
-               The training input samples.
+./main.py -h
+```
+or 
 
-            y: list of strings
-               The class labels.
-
-            sample_weight: list of integers or floats, or None
-               Sample weights. If None, samples are equally weighted.
-
-Returns:    self : object
+```
+python3 main.py -h
 ```
 
-**predict(X)**
-Predict class for X.
-```
-Parameters: X: list of strings
-               The input samples.
+You will get:
 
-Returns:    y: list of strings
-               The predicted classes.
+```
+CNN text classificer
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -batch-size N         batch size for training [default: 50]
+  -lr LR                initial learning rate [default: 0.01]
+  -epochs N             number of epochs for train [default: 10]
+  -dropout              the probability for dropout [default: 0.5]
+  -max_norm MAX_NORM    l2 constraint of parameters
+  -cpu                  disable the gpu
+  -device DEVICE        device to use for iterate data
+  -embed-dim EMBED_DIM
+  -static               fix the embedding
+  -kernel-sizes KERNEL_SIZES
+                        Comma-separated kernel size to use for convolution
+  -kernel-num KERNEL_NUM
+                        number of each kind of kernel
+  -class-num CLASS_NUM  number of class
+  -shuffle              shuffle the data every epoch
+  -num-workers NUM_WORKERS
+                        how many subprocesses to use for data loading
+                        [default: 0]
+  -log-interval LOG_INTERVAL
+                        how many batches to wait before logging training
+                        status
+  -test-interval TEST_INTERVAL
+                        how many epochs to wait before testing
+  -save-interval SAVE_INTERVAL
+                        how many epochs to wait before saving
+  -predict PREDICT      predict the sentence given
+  -snapshot SNAPSHOT    filename of model snapshot [default: None]
+  -save-dir SAVE_DIR    where to save the checkpoint
 ```
 
-**predict_proba(X)**
-Predict class probabilities for X.
+## Train
 ```
-Parameters: X: list of strings
-               The input samples.
+./main.py
+```
+You will get:
 
-Returns:    y: list of lists for floats
-               The predicted class probabilities.
 ```
+Batch[100] - loss: 0.655424  acc: 59.3750%
+Evaluation - loss: 0.672396  acc: 57.6923%(615/1066) 
+```
+
+## Test
+If you has construct you test set, you make testing like:
+
+```
+/main.py -test -snapshot="./snapshot/2017-02-11_15-50-53/snapshot_steps1500.pt
+```
+The snapshot option means where your model load from. If you don't assign it, the model will start from scratch.
+
+## Predict
+* **Example1**
+
+	```
+	./main.py -predict="Hello my dear , I love you so much ." \
+	          -snapshot="./snapshot/2017-02-11_15-50-53/snapshot_steps1500.pt" 
+	```
+	You will get:
+	
+	```
+	Loading model from [./snapshot/2017-02-11_15-50-53/snapshot_steps1500.pt]...
+	
+	[Text]  Hello my dear , I love you so much .
+	[Label] positive
+	```
+* **Example2**
+
+	```
+	./main.py -predict="You just make me so sad and I have to leave you ."\
+	          -snapshot="./snapshot/2017-02-11_15-50-53/snapshot_steps1500.pt" 
+	```
+	You will get:
+	
+	```
+	Loading model from [./snapshot/2017-02-11_15-50-53/snapshot_steps1500.pt]...
+	
+	[Text]  You just make me so sad and I have to leave you .
+	[Label] negative
+	```
+
+Your text must be separated by space, even punctuation.And, your text should longer then the max kernel size.
+
+## Reference
+* [Convolutional Neural Networks for Sentence Classification](https://arxiv.org/abs/1408.5882)
+
