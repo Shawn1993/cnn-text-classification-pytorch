@@ -71,7 +71,7 @@ class MR(TarDataset):
             string = re.sub(r"\s{2,}", " ", string)
             return string.strip()
 
-        text_field.preprocessing = data.Pipeline(clean_str)
+        text_field.tokenize = lambda x: clean_str(x).split()
         fields = [('text', text_field), ('label', label_field)]
 
         if examples is None:
