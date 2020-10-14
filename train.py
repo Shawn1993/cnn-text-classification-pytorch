@@ -14,9 +14,9 @@ def train(train_iter, dev_iter, model, args):
     steps = 0
     best_acc = 0
     last_step = 0
-    model.train()
     for epoch in range(1, args.epochs+1):
         for batch in train_iter:
+            model.train()
             feature, target = batch.text, batch.label
             feature.t_(), target.sub_(1)  # batch first, index align
             if args.cuda:
