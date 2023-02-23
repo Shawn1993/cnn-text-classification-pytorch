@@ -1,3 +1,4 @@
 torch
 torchtext
 numpy
+pylint
