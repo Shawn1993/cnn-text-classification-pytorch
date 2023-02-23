@@ -37,5 +37,6 @@ jobs:
         
     - name: Linter test
       run: |
-        pylint --output-format=parseable --reports=n --rcfile=.pylintrc .
+        pylint --output-format=parseable --reports=n --rcfile=.pylintrc --exclude=venv,*.pyc .
+
 
