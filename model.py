@@ -1,15 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 
 
 class CNN_Text(nn.Module):
-    
+
     def __init__(self, args):
         super(CNN_Text, self).__init__()
         self.args = args
-        
+
         V = args.embed_num
         D = args.embed_dim
         C = args.class_num
@@ -17,7 +16,11 @@ class CNN_Text(nn.Module):
         Co = args.kernel_num
         Ks = args.kernel_sizes
 
-        self.embed = nn.Embedding(V, D)
+        self.embed = nn.Embedding(V, D, padding_idx=0)
+        # Kim's paper: uniform[-0.25, 0.25] initialization for random embeddings
+        nn.init.uniform_(self.embed.weight, -0.25, 0.25)
+        self.embed.weight.data[0].fill_(0)  # padding stays zero
+
         self.convs = nn.ModuleList([nn.Conv2d(Ci, Co, (K, D)) for K in Ks])
         self.dropout = nn.Dropout(args.dropout)
         self.fc1 = nn.Linear(len(Ks) * Co, C)
@@ -27,7 +30,7 @@ class CNN_Text(nn.Module):
 
     def forward(self, x):
         x = self.embed(x)  # (N, W, D)
-    
+
         x = x.unsqueeze(1)  # (N, Ci, W, D)
 
         x = [F.relu(conv(x)).squeeze(3) for conv in self.convs]  # [(N, Co, W), ...]*len(Ks)

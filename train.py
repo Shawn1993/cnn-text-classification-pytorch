@@ -1,24 +1,27 @@
 import os
 import sys
 import torch
-import torch.autograd as autograd
 import torch.nn.functional as F
+from mydatasets import clean_str
 
 
 def train(train_iter, dev_iter, model, args):
     if args.cuda:
         model.cuda()
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    if getattr(args, 'optimizer', 'adam') == 'adadelta':
+        optimizer = torch.optim.Adadelta(model.parameters(), lr=args.lr, rho=0.95)
+    else:
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
     steps = 0
     best_acc = 0
     last_step = 0
+    model.train()
     for epoch in range(1, args.epochs+1):
         for batch in train_iter:
             model.train()
-            feature, target = batch.text, batch.label
-            feature.t_(), target.sub_(1)  # batch first, index align
+            feature, target = batch
             if args.cuda:
                 feature, target = feature.cuda(), target.cuda()
 
@@ -28,16 +31,24 @@ def train(train_iter, dev_iter, model, args):
             loss.backward()
             optimizer.step()
 
+            # Kim's paper: L2 weight constraint on fc layer (rescale if norm > max_norm)
+            with torch.no_grad():
+                for name, param in model.named_parameters():
+                    if 'fc1.weight' in name:
+                        norms = param.norm(2, dim=-1, keepdim=True)
+                        desired = torch.clamp(norms, max=args.max_norm)
+                        param.mul_(desired / (norms + 1e-8))
+
             steps += 1
             if steps % args.log_interval == 0:
-                corrects = (torch.max(logit, 1)[1].view(target.size()).data == target.data).sum()
-                accuracy = 100.0 * corrects/batch.batch_size
+                corrects = (torch.max(logit, 1)[1] == target).sum()
+                accuracy = 100.0 * corrects / feature.size(0)
                 sys.stdout.write(
-                    '\rBatch[{}] - loss: {:.6f}  acc: {:.4f}%({}/{})'.format(steps, 
-                                                                             loss.item(), 
+                    '\rBatch[{}] - loss: {:.6f}  acc: {:.4f}%({}/{})'.format(steps,
+                                                                             loss.item(),
                                                                              accuracy.item(),
                                                                              corrects.item(),
-                                                                             batch.batch_size))
+                                                                             feature.size(0)))
             if steps % args.test_interval == 0:
                 dev_acc = eval(dev_iter, model, args)
                 if dev_acc > best_acc:
@@ -47,51 +58,53 @@ def train(train_iter, dev_iter, model, args):
                         save(model, args.save_dir, 'best', steps)
                 else:
                     if steps - last_step >= args.early_stop:
-                        print('early stop by {} steps.'.format(args.early_stop))
+                        print('early stop by {} steps, best acc: {:.4f}%'.format(
+                            args.early_stop, best_acc))
+                        return best_acc
             elif steps % args.save_interval == 0:
                 save(model, args.save_dir, 'snapshot', steps)
+
+    return best_acc
 
 
 def eval(data_iter, model, args):
     model.eval()
     corrects, avg_loss = 0, 0
-    for batch in data_iter:
-        feature, target = batch.text, batch.label
-        feature.t_(), target.sub_(1)  # batch first, index align
-        if args.cuda:
-            feature, target = feature.cuda(), target.cuda()
+    total = 0
+    with torch.no_grad():
+        for batch in data_iter:
+            feature, target = batch
+            if args.cuda:
+                feature, target = feature.cuda(), target.cuda()
 
-        logit = model(feature)
-        loss = F.cross_entropy(logit, target, size_average=False)
+            logit = model(feature)
+            loss = F.cross_entropy(logit, target, reduction='sum')
 
-        avg_loss += loss.item()
-        corrects += (torch.max(logit, 1)
-                     [1].view(target.size()).data == target.data).sum()
+            avg_loss += loss.item()
+            corrects += (torch.max(logit, 1)[1] == target).sum().item()
+            total += target.size(0)
 
-    size = len(data_iter.dataset)
-    avg_loss /= size
-    accuracy = 100.0 * corrects/size
-    print('\nEvaluation - loss: {:.6f}  acc: {:.4f}%({}/{}) \n'.format(avg_loss, 
-                                                                       accuracy, 
-                                                                       corrects, 
-                                                                       size))
+    avg_loss /= total
+    accuracy = 100.0 * corrects / total
+    print('\nEvaluation - loss: {:.6f}  acc: {:.4f}%({}/{}) \n'.format(avg_loss,
+                                                                       accuracy,
+                                                                       corrects,
+                                                                       total))
     return accuracy
 
 
-def predict(text, model, text_field, label_feild, cuda_flag):
+def predict(text, model, text_vocab, label_vocab, cuda_flag):
     assert isinstance(text, str)
     model.eval()
-    # text = text_field.tokenize(text)
-    text = text_field.preprocess(text)
-    text = [[text_field.vocab.stoi[x] for x in text]]
-    x = torch.tensor(text)
-    x = autograd.Variable(x)
+    tokens = clean_str(text).lower().split()
+    text_ids = [text_vocab.stoi.get(t, 1) for t in tokens]  # 1 = <unk>
+    x = torch.tensor([text_ids], dtype=torch.long)
     if cuda_flag:
         x = x.cuda()
-    print(x)
-    output = model(x)
+    with torch.no_grad():
+        output = model(x)
     _, predicted = torch.max(output, 1)
-    return label_feild.vocab.itos[predicted.item()+1]
+    return label_vocab.itos[predicted.item()]
 
 
 def save(model, save_dir, save_prefix, steps):

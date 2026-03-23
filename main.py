@@ -3,8 +3,7 @@ import os
 import argparse
 import datetime
 import torch
-import torchtext.data as data
-import torchtext.datasets as datasets
+from torch.utils.data import DataLoader
 import model
 import train
 import mydatasets
@@ -21,7 +20,9 @@ parser.add_argument('-save-interval', type=int, default=500, help='how many step
 parser.add_argument('-save-dir', type=str, default='snapshot', help='where to save the snapshot')
 parser.add_argument('-early-stop', type=int, default=1000, help='iteration numbers to stop without performance increasing')
 parser.add_argument('-save-best', type=bool, default=True, help='whether to save when get best performance')
-# data 
+# data
+parser.add_argument('-dataset', type=str, default='MR', help='dataset to use: MR or SST [default: MR]')
+parser.add_argument('-no-phrases', action='store_true', default=False, help='SST: use sentence-level only (no phrase data)')
 parser.add_argument('-shuffle', action='store_true', default=False, help='shuffle the data every epoch')
 # model
 parser.add_argument('-dropout', type=float, default=0.5, help='the probability for dropout [default: 0.5]')
@@ -30,6 +31,7 @@ parser.add_argument('-embed-dim', type=int, default=128, help='number of embeddi
 parser.add_argument('-kernel-num', type=int, default=100, help='number of each kind of kernel')
 parser.add_argument('-kernel-sizes', type=str, default='3,4,5', help='comma-separated kernel size to use for convolution')
 parser.add_argument('-static', action='store_true', default=False, help='fix the embedding')
+parser.add_argument('-optimizer', type=str, default='adam', help='optimizer: adam or adadelta [default: adam]')
 # device
 parser.add_argument('-device', type=int, default=-1, help='device to use for iterate data, -1 mean cpu [default: -1]')
 parser.add_argument('-no-cuda', action='store_true', default=False, help='disable the gpu')
@@ -40,43 +42,31 @@ parser.add_argument('-test', action='store_true', default=False, help='train or 
 args = parser.parse_args()
 
 
-# load SST dataset
-def sst(text_field, label_field,  **kargs):
-    train_data, dev_data, test_data = datasets.SST.splits(text_field, label_field, fine_grained=True)
-    text_field.build_vocab(train_data, dev_data, test_data)
-    label_field.build_vocab(train_data, dev_data, test_data)
-    train_iter, dev_iter, test_iter = data.BucketIterator.splits(
-                                        (train_data, dev_data, test_data), 
-                                        batch_sizes=(args.batch_size, 
-                                                     len(dev_data), 
-                                                     len(test_data)),
-                                        **kargs)
-    return train_iter, dev_iter, test_iter 
-
-
-# load MR dataset
-def mr(text_field, label_field, **kargs):
-    train_data, dev_data = mydatasets.MR.splits(text_field, label_field)
-    text_field.build_vocab(train_data, dev_data)
-    label_field.build_vocab(train_data, dev_data)
-    train_iter, dev_iter = data.Iterator.splits(
-                                (train_data, dev_data), 
-                                batch_sizes=(args.batch_size, len(dev_data)),
-                                **kargs)
-    return train_iter, dev_iter
-
-
-# load data
+# load dataset
 print("\nLoading data...")
-text_field = data.Field(lower=True)
-label_field = data.Field(sequential=False)
-train_iter, dev_iter = mr(text_field, label_field, device=-1, repeat=False)
-# train_iter, dev_iter, test_iter = sst(text_field, label_field, device=-1, repeat=False)
+if args.dataset == 'SST':
+    use_phrases = not args.no_phrases
+    train_dataset, dev_dataset, test_dataset, text_vocab, label_vocab = mydatasets.SSTDataset.splits(
+        use_phrases=use_phrases)
+    print(f"SST-1 (5-class, phrases={use_phrases}): train={len(train_dataset)}, dev={len(dev_dataset)}, test={len(test_dataset)}")
+else:
+    train_dataset, dev_dataset, text_vocab, label_vocab = mydatasets.MRDataset.splits()
+    test_dataset = None
+
+train_iter = DataLoader(train_dataset, batch_size=args.batch_size,
+                        shuffle=True, collate_fn=mydatasets.collate_fn)
+dev_iter = DataLoader(dev_dataset, batch_size=len(dev_dataset),
+                      shuffle=False, collate_fn=mydatasets.collate_fn)
+if test_dataset is not None:
+    test_iter = DataLoader(test_dataset, batch_size=len(test_dataset),
+                           shuffle=False, collate_fn=mydatasets.collate_fn)
+else:
+    test_iter = None
 
 
 # update args and print
-args.embed_num = len(text_field.vocab)
-args.class_num = len(label_field.vocab) - 1
+args.embed_num = len(text_vocab)
+args.class_num = len(label_vocab)
 args.cuda = (not args.no_cuda) and torch.cuda.is_available(); del args.no_cuda
 args.kernel_sizes = [int(k) for k in args.kernel_sizes.split(',')]
 args.save_dir = os.path.join(args.save_dir, datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
@@ -90,27 +80,40 @@ for attr, value in sorted(args.__dict__.items()):
 cnn = model.CNN_Text(args)
 if args.snapshot is not None:
     print('\nLoading model from {}...'.format(args.snapshot))
-    cnn.load_state_dict(torch.load(args.snapshot))
+    cnn.load_state_dict(torch.load(args.snapshot, weights_only=True))
 
 if args.cuda:
     torch.cuda.set_device(args.device)
     cnn = cnn.cuda()
-        
+
 
 # train or predict
 if args.predict is not None:
-    label = train.predict(args.predict, cnn, text_field, label_field, args.cuda)
+    label = train.predict(args.predict, cnn, text_vocab, label_vocab, args.cuda)
     print('\n[Text]  {}\n[Label] {}\n'.format(args.predict, label))
 elif args.test:
     try:
-        train.eval(test_iter, cnn, args) 
+        print("\n--- Dev Set ---")
+        train.eval(dev_iter, cnn, args)
+        if test_iter is not None:
+            print("--- Test Set ---")
+            train.eval(test_iter, cnn, args)
     except Exception as e:
-        print("\nSorry. The test dataset doesn't  exist.\n")
+        print("\nSorry. The test dataset doesn't exist.\n")
 else:
     print()
     try:
-        train.train(train_iter, dev_iter, cnn, args)
+        best_acc = train.train(train_iter, dev_iter, cnn, args)
+        if test_iter is not None:
+            # Load best model for test evaluation
+            import glob
+            best_files = glob.glob(os.path.join(args.save_dir, 'best_steps_*.pt'))
+            if best_files:
+                best_path = max(best_files, key=os.path.getmtime)
+                print(f'\nLoading best model from {best_path}...')
+                cnn.load_state_dict(torch.load(best_path, weights_only=True))
+            print("\n--- Final Test Set Evaluation ---")
+            train.eval(test_iter, cnn, args)
     except KeyboardInterrupt:
         print('\n' + '-' * 89)
         print('Exiting from training early')
-

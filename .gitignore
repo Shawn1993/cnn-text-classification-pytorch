@@ -96,6 +96,7 @@ ENV/
 
 # dataset
 rt-polaritydata
+rt-polaritydata.*
 trees
 *.tar
 *.zip
